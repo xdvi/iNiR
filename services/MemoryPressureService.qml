@@ -20,8 +20,11 @@ Singleton {
     readonly property int checkIntervalMs: 300000  // check every 5 min
 
     // ── State ─────────────────────────────────────────────────────────────
+    property int shellPid: 0
     property int currentDeletedMappings: 0
     property int currentTotalMappings: 0
+    property int currentDeletedRssKb: 0
+    property bool metricsValid: false
     property bool notificationShown: false
     property bool userDismissed: false
 
@@ -59,8 +62,11 @@ Singleton {
 
     function getStats(): string {
         return JSON.stringify({
+            shellPid: root.shellPid,
+            metricsValid: root.metricsValid,
             deletedMappings: root.currentDeletedMappings,
             totalMappings: root.currentTotalMappings,
+            deletedRssMb: Math.round(root.currentDeletedRssKb / 1024),
             threshold: root.deletedMappingsThreshold,
             notificationShown: root.notificationShown,
             userDismissed: root.userDismissed,
@@ -76,15 +82,18 @@ Singleton {
 
     function _checkMemoryPressure(): void {
         if (!root.enabled) return
+        if (_mapsReader.running) return
         _mapsReader.running = true
     }
 
     function _notifyUser(): void {
         if (root.notificationShown || root.userDismissed) return
-        
+
         root.notificationShown = true
-        const mbEstimate = Math.round(root.currentDeletedMappings * 0.5)  // ~0.5 MB per mapping
-        
+        const mbEstimate = root.currentDeletedRssKb > 0
+            ? Math.round(root.currentDeletedRssKb / 1024)
+            : Math.round(root.currentDeletedMappings * 0.5)  // ~0.5 MB per mapping
+
         Notifications.send(
             "iNiR",
             Translation.tr("Memory usage is high (~%1 MB accumulated). A restart would free it. Run: inir memory restart").arg(mbEstimate),
@@ -104,24 +113,48 @@ Singleton {
     }
 
     // ── Maps reader ───────────────────────────────────────────────────────
+    // Process children inherit their own /proc/self; Quickshell is $PPID.
+    // Validate cmdline before reading maps so a wrong parent never looks like "0 leak".
     Process {
         id: _mapsReader
-        command: ["sh", "-c", "grep -c 'JSGCHeap.*deleted' /proc/self/maps 2>/dev/null || echo 0; grep -c JSGCHeap /proc/self/maps 2>/dev/null || echo 0"]
+        command: ["sh", "-c",
+            "pid=$PPID; " +
+            "cmd=$(tr '\\0' ' ' </proc/$pid/cmdline 2>/dev/null); " +
+            "case \"$cmd\" in *qs*inir*) ;; *) pid=0 ;; esac; " +
+            "del=0; tot=0; rss=0; " +
+            "if [ \"$pid\" -gt 0 ] 2>/dev/null; then " +
+            "  del=$(grep -c 'JSGCHeap.*deleted' /proc/$pid/maps 2>/dev/null || echo 0); " +
+            "  tot=$(grep -c JSGCHeap /proc/$pid/maps 2>/dev/null || echo 0); " +
+            "  rss=$(awk '/^[0-9a-f]+-[0-9a-f]+/ { is_jsgc=($0 ~ /JSGCHeap/); is_del=($0 ~ /\\(deleted\\)/) } " +
+            "is_jsgc && is_del && /^Rss:/ { s+=$2 } END { print s+0 }' /proc/$pid/smaps 2>/dev/null || echo 0); " +
+            "fi; " +
+            "printf '%s\\n%s\\n%s\\n%s\\n' \"$del\" \"$tot\" \"$pid\" \"$rss\""
+        ]
         stdout: SplitParser {
             property int lineNum: 0
             onRead: line => {
                 const val = parseInt(line.trim()) || 0
                 if (lineNum === 0) {
                     root.currentDeletedMappings = val
-                } else {
+                } else if (lineNum === 1) {
                     root.currentTotalMappings = val
+                } else if (lineNum === 2) {
+                    root.shellPid = val
+                    root.metricsValid = val > 0
+                } else {
+                    root.currentDeletedRssKb = val
                 }
                 lineNum++
             }
         }
-        onExited: (code, status) => {
+        onExited: () => {
             _mapsReader.stdout.lineNum = 0
-            
+
+            if (!root.metricsValid) {
+                _log("skipped metrics: shell pid not validated")
+                return
+            }
+
             if (root.currentDeletedMappings >= root.deletedMappingsThreshold) {
                 _log("threshold exceeded:", root.currentDeletedMappings, ">=", root.deletedMappingsThreshold)
                 root._notifyUser()
@@ -133,7 +166,10 @@ Singleton {
     IpcHandler {
         target: "memory"
         function collect(): string { root.forceGc(); return "gc() called" }
-        function stats(): string { return root.getStats() }
+        function stats(): string {
+            root._checkMemoryPressure()
+            return root.getStats()
+        }
         function restart(): string { root.restart(); return "restarting..." }
         function dismiss(): string { root.dismiss(); return "dismissed" }
         function reset(): string { root.reset(); return "reset" }
@@ -143,6 +179,7 @@ Singleton {
         if (!root.enabled) return
         Qt.callLater(() => {
             _checkTimer.start()
+            root._checkMemoryPressure()
         })
     }
 }
