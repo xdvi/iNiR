@@ -120,7 +120,7 @@ declare -gA IPC_TARGET_FUNCTIONS=(
   [audio]="volumeUp volumeDown mute micMute"
   [background]="toggleEditMode"
   [bar]="toggle close open"
-  [brightness]="increment decrement"
+  [brightness]="increment decrement refreshAfterDpms"
   [cheatsheet]="toggle close open"
   [clipboard]="open close toggle"
   [cliphistService]="update"
@@ -191,6 +191,7 @@ declare -gA IPC_FUNCTION_DESC=(
   ["bar:open"]="Show bar"
   ["brightness:increment"]="Increase brightness"
   ["brightness:decrement"]="Decrease brightness"
+  ["brightness:refreshAfterDpms"]=""
   ["cheatsheet:toggle"]="Open/close cheatsheet"
   ["cheatsheet:close"]="Hide cheatsheet overlay"
   ["cheatsheet:open"]="Show cheatsheet overlay"
@@ -271,7 +272,7 @@ declare -gA IPC_FUNCTION_DESC=(
   ["region:ocr"]="OCR text recognition"
   ["region:record"]="Record region (no audio)"
   ["region:recordWithSound"]="Record region with audio"
-  ["region:menu"]="Open the unified snip menu (pick action/scope inline)"
+  ["region:menu"]=""
   ["search:toggle"]="Open/close start menu"
   ["search:close"]="Close start menu"
   ["search:open"]="Open start menu"
@@ -376,8 +377,7 @@ bind "Mod+Alt+P" { spawn "inir" "mpris" "previous"; }'
   [panelFamily]='bind "Mod+Shift+W" { spawn "inir" "panelFamily" "cycle"; }'
   [region]='bind "Super+Shift+S" { spawn "inir" "region" "screenshot"; }
 bind "Super+Shift+X" { spawn "inir" "region" "ocr"; }
-bind "Super+Shift+A" { spawn "inir" "region" "search"; }
-bind "Ctrl+Shift+S" { spawn "inir" "region" "menu"; }'
+bind "Super+Shift+A" { spawn "inir" "region" "search"; }'
   [session]='bind "Super+Shift+E" { spawn "inir" "session" "toggle"; }'
   [settings]='bind "Super+Comma" { spawn "inir" "settings"; }'
   [voiceSearch]='bind "Super+Shift+V" { spawn "inir" "voiceSearch" "toggle"; }'

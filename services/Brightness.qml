@@ -20,6 +20,8 @@ Singleton {
     signal brightnessChanged()
 
     property var ddcMonitors: []
+    // Survives monitor object recreation when screens reconnect after DPMS.
+    property var lastValidBrightness: ({})
     readonly property list<BrightnessMonitor> monitors: Quickshell.screens.map(screen => monitorComp.createObject(root, {
         screen
     }))
@@ -42,6 +44,19 @@ Singleton {
         const monitor = monitors.find(m => focusedName === m.screen.name);
         if (monitor)
             monitor.setBrightness(monitor.brightness - 0.05);
+    }
+
+    function refreshAfterDpms(): void {
+        _dpmsRefreshTimer.restart();
+    }
+
+    Timer {
+        id: _dpmsRefreshTimer
+        interval: 100
+        onTriggered: {
+            for (let i = 0; i < root.monitors.length; ++i)
+                root.monitors[i].initialize();
+        }
     }
 
     reloadableId: "brightness"
@@ -79,11 +94,11 @@ Singleton {
 
         required property ShellScreen screen
         readonly property bool isDdc: {
-            const match = root.ddcMonitors.find(m => screen.model?.includes(m.model) && !root.monitors.slice(0, root.monitors.indexOf(this)).some(mon => mon.busNum === m.busNum));
+            const match = root.ddcMonitors.find(m => screen?.model?.includes(m.model) && !root.monitors.slice(0, root.monitors.indexOf(this)).some(mon => mon.busNum === m.busNum));
             return !!match;
         }
         readonly property string busNum: {
-            const match = root.ddcMonitors.find(m => screen.model?.includes(m.model) && !root.monitors.slice(0, root.monitors.indexOf(this)).some(mon => mon.busNum === m.busNum));
+            const match = root.ddcMonitors.find(m => screen?.model?.includes(m.model) && !root.monitors.slice(0, root.monitors.indexOf(this)).some(mon => mon.busNum === m.busNum));
             return match?.busNum ?? "";
         }
         property int rawMaxBrightness: 100
@@ -91,6 +106,7 @@ Singleton {
         property real brightnessMultiplier: 1.0
         property real multipliedBrightness: Math.max(0, Math.min(1, brightness * ((Config.options?.light?.antiFlashbang?.enable ?? false) ? brightnessMultiplier : 1)))
         property bool ready: false
+        property bool suppressHardwareSync: false
         property bool animateChanges: !monitor.isDdc
 
         onBrightnessChanged: {
@@ -107,12 +123,21 @@ Singleton {
             }
         }
         onMultipliedBrightnessChanged: {
+            if (!monitor.ready || monitor.suppressHardwareSync) return;
             if (monitor.animateChanges) syncBrightness();
             else setTimer.restart();
         }
 
+        function _rememberBrightness(value: real): void {
+            const screenName = monitor.screen?.name ?? "";
+            if (screenName && value > 0)
+                root.lastValidBrightness[screenName] = value;
+        }
+
         function initialize() {
+            if (monitor.isDdc && !monitor.busNum) return;
             monitor.ready = false;
+            monitor.suppressHardwareSync = true;
             initProc.command = isDdc ? ["ddcutil", "-b", busNum, "getvcp", "10", "--brief"] : ["sh", "-c", `echo "a b c $(brightnessctl g) $(brightnessctl m)"`];
             initProc.running = true;
         }
@@ -120,10 +145,31 @@ Singleton {
         readonly property Process initProc: Process {
             stdout: SplitParser {
                 onRead: data => {
-                    const [, , , current, max] = data.split(" ");
-                    monitor.rawMaxBrightness = parseInt(max);
-                    monitor.brightness = parseInt(current) / monitor.rawMaxBrightness;
+                    const parts = data.trim().split(/\s+/);
+                    if (parts.length < 5) {
+                        monitor.suppressHardwareSync = false;
+                        monitor.ready = true;
+                        return;
+                    }
+                    const current = parseInt(parts[3]);
+                    const max = parseInt(parts[4]);
+                    if (!max || isNaN(max)) {
+                        monitor.suppressHardwareSync = false;
+                        monitor.ready = true;
+                        return;
+                    }
+                    monitor.rawMaxBrightness = max;
+                    const screenName = monitor.screen?.name ?? "";
+                    const cached = root.lastValidBrightness[screenName];
+                    let normalized = current / max;
+                    // DPMS / wake races often report 0 while hardware still holds the prior level.
+                    if (current <= 0 && cached > 0)
+                        normalized = cached;
+                    else if (normalized > 0)
+                        monitor._rememberBrightness(normalized);
+                    monitor.brightness = normalized;
                     monitor.ready = true;
+                    monitor.suppressHardwareSync = false;
                 }
             }
         }
@@ -139,13 +185,19 @@ Singleton {
 
         function syncBrightness() {
             const brightnessValue = Math.max(monitor.multipliedBrightness, 0)
-            const rawValueRounded = Math.max(Math.floor(brightnessValue * monitor.rawMaxBrightness), 1);
-            setProc.command = isDdc ? ["ddcutil", "-b", busNum, "setvcp", "10", rawValueRounded] : ["brightnessctl", "--class", "backlight", "s", rawValueRounded, "--quiet"];
+            if (monitor.isDdc) {
+                const rawValueRounded = Math.max(Math.floor(brightnessValue * monitor.rawMaxBrightness), 1);
+                setProc.command = ["ddcutil", "-b", busNum, "setvcp", "10", rawValueRounded];
+            } else {
+                const percent = Math.max(Math.round(brightnessValue * 100), 1);
+                setProc.command = ["brightnessctl", "--class", "backlight", "s", `${percent}%`, "--quiet"];
+            }
             setProc.startDetached();
         }
 
         function setBrightness(value: real): void {
             value = Math.max(0, Math.min(1, value));
+            monitor._rememberBrightness(value);
             monitor.brightness = value;
         }
 
@@ -235,7 +287,8 @@ Singleton {
                         // No cleanup needed - we pipe directly to magick without saving file
                         const lightness = lightnessCollector.text
                         const newMultiplier = root.brightnessMultiplierForLightness(parseFloat(lightness))
-                        Brightness.getMonitorForScreen(screenScope.modelData).setBrightnessMultiplier(newMultiplier)
+                        const mon = Brightness.getMonitorForScreen(screenScope.modelData)
+                        if (mon) mon.setBrightnessMultiplier(newMultiplier)
                     }
                 }
             }
@@ -253,6 +306,10 @@ Singleton {
 
         function decrement(): void {
             root.decreaseBrightness();
+        }
+
+        function refreshAfterDpms(): void {
+            root.refreshAfterDpms();
         }
     }
 
