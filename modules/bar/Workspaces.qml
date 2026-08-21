@@ -30,11 +30,25 @@ Item {
     readonly property bool useZzzStyle: Appearance.zzzEverywhere && !root.forceMaterialStyle
     readonly property bool useAngelStyle: Appearance.angelEverywhere && !root.forceMaterialStyle
     readonly property bool useAuroraStyle: Appearance.auroraEverywhere && !root.forceMaterialStyle
-    readonly property color workspacePrimary: root.forceMaterialStyle ? Appearance.m3colors.m3primary : Appearance.colors.colPrimary
+    readonly property color workspaceThemePrimary: root.forceMaterialStyle ? Appearance.m3colors.m3primary : Appearance.colors.colPrimary
+    readonly property color workspaceThemeIndicator: root.useZzzStyle ? Appearance.zzz.accentSoft
+        : root.useAngelStyle ? Appearance.angel.colPrimary : root.workspaceThemePrimary
+    readonly property bool automaticIndicatorColor: Config.options?.bar?.workspaces?.automaticIndicatorColor ?? true
+    readonly property string configuredIndicatorColor: Config.options?.bar?.workspaces?.indicatorColor ?? ""
+    readonly property color workspaceIndicatorColor: {
+        if (root.automaticIndicatorColor || root.configuredIndicatorColor.length === 0)
+            return root.workspaceThemeIndicator
+        const parsed = Qt.color(root.configuredIndicatorColor)
+        return parsed.valid ? parsed : root.workspaceThemeIndicator
+    }
+    readonly property color workspacePrimary: root.workspaceIndicatorColor
     readonly property color workspaceOnPrimary: root.forceMaterialStyle ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnPrimary
     readonly property color workspaceSecondaryContainer: root.forceMaterialStyle ? Appearance.m3colors.m3secondaryContainer : Appearance.colors.colSecondaryContainer
     readonly property color workspaceOnSecondaryContainer: root.forceMaterialStyle ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnSecondaryContainer
     readonly property color workspaceInactive: root.forceMaterialStyle ? Appearance.m3colors.m3onSurfaceVariant : Appearance.colors.colOnLayer1Inactive
+    readonly property color workspaceOnPrimaryReadable: ColorUtils.ensureReadable(root.workspaceOnPrimary, root.workspacePrimary, 4.5)
+    readonly property color workspaceOnSecondaryReadable: ColorUtils.ensureReadable(root.workspaceOnSecondaryContainer, root.workspaceSecondaryContainer, 4.5)
+    readonly property color workspaceInactiveReadable: ColorUtils.ensureReadable(root.workspaceInactive, Appearance.colors.colLayer1Base, 4.5)
     property bool configuredPerMonitor: true
     property string scrollBehavior: "workspace"
     property bool configuredDynamicCount: true
@@ -456,8 +470,7 @@ Item {
         radius: root.useZzzStyle ? Appearance.zzz.cornerRadius
             : root.useAngelStyle ? Appearance.angel.roundingSmall : Math.min(width, height) / 2
         // ZZZ shows a chamfered signal plate (geometry) instead of the rounded fill.
-        color: root.useZzzStyle ? "transparent"
-            : root.useAngelStyle ? Appearance.angel.colPrimary : root.workspacePrimary
+        color: root.useZzzStyle ? "transparent" : root.workspaceIndicatorColor
         Behavior on radius { enabled: Appearance.animationsEnabled; NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animationCurves.zzzOvershoot } }
         Behavior on color { enabled: Appearance.animationsEnabled; ColorAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
 
@@ -465,7 +478,7 @@ Item {
             anchors.fill: parent
             visible: root.useZzzStyle
             chamfer: Appearance.zzz.cutCorner * 0.4
-            fillColor: Appearance.zzz.accentSoft
+            fillColor: root.workspaceIndicatorColor
         }
 
         anchors {
@@ -564,13 +577,13 @@ Item {
                         }
                         elide: Text.ElideRight
                         color: (currentWorkspaceNumber == button.workspaceValue) ?
-                            root.workspaceOnPrimary :
+                            root.workspaceOnPrimaryReadable :
                             // ZZZ: occupied cells have no plate (transparent), so the dark
                             // onSecondary ink read black-on-black — use light zzz inks instead.
                             root.useZzzStyle
                                 ? (workspaceOccupied[index] ? Appearance.zzz.onColor : Appearance.zzz.onMuted)
-                                : (workspaceOccupied[index] ? root.workspaceOnSecondaryContainer :
-                                    root.workspaceInactive)
+                                : (workspaceOccupied[index] ? root.workspaceOnSecondaryReadable :
+                                    root.workspaceInactiveReadable)
 
                         Behavior on opacity {
                             animation: NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
@@ -585,11 +598,11 @@ Item {
                         visible: opacity > 0
                         anchors.centerIn: parent
                         readonly property color markerColor: (currentWorkspaceNumber == button.workspaceValue)
-                            ? root.workspaceOnPrimary
+                            ? root.workspaceOnPrimaryReadable
                             : root.useZzzStyle
                                 ? (workspaceOccupied[index] ? Appearance.zzz.onColor : Appearance.zzz.onMuted)
-                                : (workspaceOccupied[index] ? root.workspaceOnSecondaryContainer
-                                    : root.workspaceInactive)
+                                : (workspaceOccupied[index] ? root.workspaceOnSecondaryReadable
+                                    : root.workspaceInactiveReadable)
                         sourceComponent: root.indicatorStyle === "icon" ? workspaceIconMarker : workspaceDotMarker
 
                         Component {

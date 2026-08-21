@@ -720,7 +720,7 @@ AbstractBackgroundWidget {
         id: shadowShape
         anchors.fill: parent
         shape: root.shapeEnum
-        color: Appearance.colors.colPrimaryContainer
+        color: root.widgetSemanticContainer(root.widgetPrimaryRole)
         visible: false
     }
 
@@ -743,7 +743,7 @@ AbstractBackgroundWidget {
 
         Rectangle {
             anchors.fill: parent
-            color: Appearance.colors.colPrimaryContainer
+            color: root.widgetSemanticContainer(root.widgetPrimaryRole)
         }
 
         MediaSlot {
@@ -782,7 +782,7 @@ AbstractBackgroundWidget {
             text: root.activeFailed ? "broken_image" : (root.dropHover ? "download" : "perm_media")
             fill: root.dropHover ? 1 : 0
             iconSize: Math.max(28, Math.round(root.renderedSize * 0.24))
-            color: Appearance.colors.colOnPrimaryContainer
+            color: root.widgetSemanticOnContainer(root.widgetPrimaryRole)
         }
 
         MaterialShape {

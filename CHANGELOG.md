@@ -5,7 +5,38 @@ All notable changes to iNiR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.29.1] - 2026-08-11
+
+A smaller release focused on making the desktop editor easier to trust, fixing a few rough runtime edges, and closing the reports that surfaced after 2.29.0.
+
+### Added
+- **Workspace indicator colors**: the active workspace can now use an automatic theme color or a custom color from Bar Settings. Foreground contrast stays readable automatically. Fixes [#215](https://github.com/snowarch/iNiR/issues/215).
+- **Reusable Nix expressions**: the package, NixOS module, and Home Manager module can now be imported without flakes; the flake remains a thin entrypoint. The Nix wrapper also carries Material Symbols so shell icons work without a separate host font install. Fixes [#216](https://github.com/snowarch/iNiR/issues/216).
+- **Desktop widget palette presets**: Quick Controls and Widgets Settings share the same Default/Primary/Secondary/Tertiary presets, with detailed role overrides available when needed.
+
+### Changed
+- **Desktop widget editing**: dragging, resizing, grid snapping, manager navigation, filters, and locked-widget handling now use the same panel-aware layout rules. Widget selection no longer shifts the layout.
+- **Widget colors**: System Monitor and other desktop widgets now use the shell's existing semantic roles instead of inventing local wallpaper colors. This keeps accent identity and warning states consistent across themes.
+- **Cava controls**: shell visualizers and terminal Cava now share stereo/channel state and expose the same spectrum, palette, response, smoothing, geometry, and opacity controls.
+- **Fingerprint authentication**: lock-screen fingerprint polling now follows Quickshell's real PAM lifecycle, starts after late device discovery, survives locked-state resets, and retries without duplicate sessions. Hardware acceptance remains tracked in [#211](https://github.com/snowarch/iNiR/issues/211).
+
+### Fixed
+- **XWayland app launches**: apps such as Steam, Wine, and Warp recover the live `DISPLAY` instead of inheriting a stale shell environment. Fixes [#217](https://github.com/snowarch/iNiR/issues/217).
+- **Notification hot reload**: notification wrappers, actions, urgency, text, and animations survive QML reloads without transient type/null warnings.
+- **Blurry dialogs**: shared dialogs keep text and icons on fixed pixel-aligned geometry while their background animates, fixing soft text in Close Confirm, Audio, Wi-Fi, Bluetooth, Hotspot, Night Light, Events, and Polkit.
+- **Audio device dialogs**: device menus close with their parent sidebar, and mixer rows tolerate PipeWire nodes disappearing during teardown instead of leaving a popup or QML warning behind.
+- **M3 tray colors**: the M3 tray uses its own semantic tint setting again instead of inheriting the classic tray value.
+- **Update hover card**: long branch names, commits, versions, and status messages stay inside the popup.
+- **Desktop and popup polish**: managed desktop menus use the correct screen coordinate space, Cookie popup motion stays inside fixed window geometry, and Wallhaven hover actions require clearer intent.
+- **Session/runtime cleanup**: XEmbed tray supervision, screenshot clipboard ownership, SDDM avatar lookup, and legacy GTK4 dark-preference handling are more reliable.
+
+### Issues / PRs
+- Fixed [#215](https://github.com/snowarch/iNiR/issues/215), [#216](https://github.com/snowarch/iNiR/issues/216), and [#217](https://github.com/snowarch/iNiR/issues/217).
+- Continued work on [#211](https://github.com/snowarch/iNiR/issues/211); end-to-end fingerprint acceptance still needs enrolled hardware.
+
+### Contributors
+- [@MacaylaMarvelous81](https://github.com/MacaylaMarvelous81) caught the missing Material Symbols font while working on [#218](https://github.com/snowarch/iNiR/pull/218).
+- [@TildeEthDoUsPart](https://github.com/TildeEthDoUsPart) corrected the Dashboard IPC hint in [#212](https://github.com/snowarch/iNiR/pull/212).
 
 ## [2.29.0] - 2026-08-06
 

@@ -96,15 +96,10 @@ AbstractBackgroundWidget {
 
     // ── Accent colors ── primary from the shared desktop-widget identity.
     readonly property color accentPrimary: root.widgetAccent
-    readonly property color accentPrimaryContainer: Appearance.zzzEverywhere ? Appearance.zzz.sticker
-        : Appearance.angelEverywhere ? Appearance.angel.colGlassCard
-        : Appearance.inirEverywhere ? Appearance.inir.colLayer1
-        : Appearance.auroraEverywhere ? Appearance.aurora.colSubSurface
-        : Appearance.colors.colPrimaryContainer
-    readonly property color accentOnPrimaryContainer: Appearance.zzzEverywhere ? Appearance.zzz.onSticker
-        : Appearance.colors.colOnPrimaryContainer
+    readonly property color accentPrimaryContainer: root.widgetSemanticContainer(root.widgetPrimaryRole)
+    readonly property color accentOnPrimaryContainer: root.widgetSemanticOnContainer(root.widgetPrimaryRole)
     readonly property color shapeFill: root.accentPrimaryContainer
-    readonly property color shapeInk: ColorUtils.ensureReadable(root.accentOnPrimaryContainer, root.shapeFill, 4.5)
+    readonly property color shapeInk: root.accentOnPrimaryContainer
     // Card text follows the real backdrop: widget ink uses the configured
     // surface when present and wallpaper-region ink when the card is disabled.
     readonly property color cardInk: root.widgetInk
@@ -337,8 +332,8 @@ AbstractBackgroundWidget {
             MaterialShapeWrappedMaterialSymbol {
                 Layout.alignment: Qt.AlignTop
                 shape: MaterialShape.Shape.Sunny
-                color: Appearance.colors.colPrimaryContainer
-                colSymbol: Appearance.colors.colOnPrimaryContainer
+                color: root.widgetSemanticContainer(root.widgetPrimaryRole)
+                colSymbol: root.widgetSemanticOnContainer(root.widgetPrimaryRole)
                 text: Icons.getWeatherIcon(Weather.data?.wCode, Weather.isNightNow()) ?? "cloud"
                 fill: 1
                 iconSize: Math.round(24 * root.scaleFactor)
@@ -362,12 +357,10 @@ AbstractBackgroundWidget {
                     required property var modelData
                     required property int index
                     readonly property bool alternate: index % 2 === 0
-                    readonly property color chipColor: metricChip.alternate
-                        ? Appearance.colors.colSecondaryContainer
-                        : Appearance.colors.colTertiaryContainer
-                    readonly property color chipInk: metricChip.alternate
-                        ? Appearance.colors.colOnSecondaryContainer
-                        : Appearance.colors.colOnTertiaryContainer
+                    readonly property string chipRole: metricChip.alternate
+                        ? root.widgetSecondaryRole : root.widgetTertiaryRole
+                    readonly property color chipColor: root.widgetSemanticContainer(metricChip.chipRole)
+                    readonly property color chipInk: root.widgetSemanticOnContainer(metricChip.chipRole)
 
                     width: chipRow.implicitWidth + Math.round(16 * root.scaleFactor)
                     height: chipRow.implicitHeight + Math.round(8 * root.scaleFactor)

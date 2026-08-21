@@ -156,12 +156,11 @@ Scope {
 
             const key = (screen.name ?? "") + "::" + name
             GlobalStates.setWidgetEditMode(true)
-            if (openControls && name !== "uptime")
+            if (openControls)
                 GlobalStates.requestDesktopWidgetQuickControls(key)
             else
                 GlobalStates.selectDesktopWidget(key)
-            return openControls && name === "uptime"
-                ? key + " (quick controls unavailable)" : key
+            return key
         }
 
         function promoteWidget(widgetName: string): string {
@@ -1540,8 +1539,10 @@ Scope {
                         desktopFocusSink.forceActiveFocus()
                         GlobalStates.clearDesktopItemSelection()
                         if (desktopContextMenu.active) desktopContextMenu.close()
+                        if (desktopItemContextMenu.active) desktopItemContextMenu.close()
                         return
                     }
+                    if (desktopItemContextMenu.active) desktopItemContextMenu.close()
                     desktopMenuAnchor.x = mouse.x
                     desktopMenuAnchor.y = mouse.y
                     desktopContextMenu.active = true
@@ -1567,20 +1568,65 @@ Scope {
                 closeOnHoverLost: true
                 closeOnHoverLostAfterEntered: true
                 closeOnHoverLostDelay: 700
-                model: [
+                model: GlobalStates.widgetEditMode ? [
+                    { text: Translation.tr("Manage widgets"), iconName: "tune", monochromeIcon: true,
+                        action: () => { widgetManagerPanel.shown = true } },
+                    { text: Config.getNestedValue("background.widgets.editGrid.snap", true)
+                            ? Translation.tr("Disable grid snap") : Translation.tr("Enable grid snap"),
+                        iconName: "grid_3x3", monochromeIcon: true,
+                        action: () => Config.setNestedValue("background.widgets.editGrid.snap",
+                            !Config.getNestedValue("background.widgets.editGrid.snap", true)) },
+                    { text: Translation.tr("Grid size: %1 px").arg(
+                            Config.getNestedValue("background.widgets.editGrid.size", 32)),
+                        iconName: "grid_4x4", monochromeIcon: true,
+                        action: () => {
+                            const sizes = [16, 32, 48, 64]
+                            const current = Config.getNestedValue("background.widgets.editGrid.size", 32)
+                            const index = sizes.indexOf(current)
+                            Config.setNestedValue("background.widgets.editGrid.size",
+                                sizes[(index + 1) % sizes.length])
+                        } },
+                    { type: "separator" },
+                    { text: Translation.tr("Widget settings"), iconName: "settings", monochromeIcon: true,
+                        action: () => {
+                            if (Config.options?.settingsUi?.overlayMode !== false) {
+                                GlobalStates.settingsOverlayRequestedPage = 14
+                                GlobalStates.settingsOverlayOpen = true
+                            } else {
+                                Quickshell.execDetached(["/usr/bin/env", "QS_SETTINGS_PAGE=14",
+                                    Quickshell.shellPath("scripts/inir"), "settings-window"])
+                            }
+                        } },
+                    { text: Translation.tr("Done editing"), iconName: "check", monochromeIcon: true,
+                        action: () => { widgetManagerPanel.shown = false; GlobalStates.setWidgetEditMode(false) } }
+                ] : [
                     { text: Translation.tr("Settings"), iconName: "settings", monochromeIcon: true,
                         action: () => { Quickshell.execDetached([Quickshell.shellPath("scripts/inir"), "settings"]) } },
                     { type: "separator" },
                     { text: Translation.tr("Change wallpaper"), iconName: "image", monochromeIcon: true,
                         action: () => { GlobalActions.runLauncher(["wallpaperSelector", "toggle"]) } },
                     { text: Translation.tr("Edit widgets"), iconName: "edit", monochromeIcon: true,
-                        action: () => { GlobalStates.setWidgetEditMode(!GlobalStates.widgetEditMode) } },
+                        action: () => { GlobalStates.setWidgetEditMode(true) } },
                     { text: Translation.tr("Edit shell layout"), iconName: "dashboard_customize", monochromeIcon: true,
                         action: () => { ShellEditSession.toggle() } },
                     { type: "separator" },
                     { text: Translation.tr("Reload shell"), iconName: "refresh", monochromeIcon: true,
                         action: () => { Quickshell.execDetached(["/usr/bin/bash", Quickshell.shellPath("scripts/restart-shell.sh")]) } }
                 ]
+            }
+
+            // Managed items use the same stable screen-level popup path as the
+            // proven bare-desktop menu. Do not anchor a PopupWindow inside the
+            // transformed WidgetCanvas delegate tree.
+            ContextMenu {
+                id: desktopItemContextMenu
+                z: 27
+                anchorItem: desktopMenuAnchor
+                popupAbove: false
+                closeOnFocusLost: false
+                closeOnHoverLost: true
+                closeOnHoverLostAfterEntered: true
+                closeOnHoverLostDelay: 700
             }
 
             WidgetCanvas {
@@ -1649,6 +1695,7 @@ Scope {
                     id: desktopItemsRepeater
                     model: widgetCanvas._desktopItemsForOutput(bgRoot.screen?.name ?? "")
                     delegate: DesktopItemDelegate {
+                        id: desktopItemDelegate
                         required property var modelData
                         itemId: String(modelData.id ?? "")
                         itemData: modelData
@@ -1659,6 +1706,19 @@ Scope {
                         gridSize: Number(Config.getNestedValue("background.widgets.editGrid.size", 16))
                         gridSnap: Boolean(Config.getNestedValue("background.widgets.editGrid.snap", true))
                         dragEnabled: !GlobalStates.screenLocked && !GlobalStates.shellLayoutEditMode
+                        onContextMenuRequested: (menuModel, anchorX, anchorY) => {
+                            const position = desktopItemDelegate.mapToItem(
+                                desktopMenuAnchor.parent, anchorX, anchorY)
+                            if (desktopContextMenu.active) desktopContextMenu.close()
+                            desktopMenuAnchor.x = position.x
+                            desktopMenuAnchor.y = position.y
+                            desktopItemContextMenu.model = menuModel
+                            desktopItemContextMenu.active = true
+                        }
+                        onContextMenuCloseRequested: {
+                            if (desktopItemContextMenu.active)
+                                desktopItemContextMenu.close()
+                        }
                     }
                 }
 
@@ -1914,6 +1974,15 @@ Scope {
                     return nextKey
                 }
 
+                function promoteDesktopWidget(instanceKey: string): string {
+                    const key = String(instanceKey ?? "")
+                    if (!key)
+                        return ""
+                    backgroundScope.promoteDesktopWidgetKey(key)
+                    GlobalStates.selectDesktopWidget(key)
+                    return key
+                }
+
                 // ── Edit Mode Scrim ──────────────────────────────
                 Rectangle {
                     anchors.fill: parent
@@ -1968,14 +2037,17 @@ Scope {
                     readonly property bool hasSelection: GlobalStates.selectedDesktopWidget
                         .startsWith((bgRoot.screen?.name ?? "") + "::")
 
-                    // Grid dots at intersections
+                    // Grid dots at intersections. The lattice uses the same
+                    // panel-aware bounds as drag snapping, so moving the bar or
+                    // dock changes both the visible guide and the committed
+                    // position instead of leaving two competing coordinate systems.
                     readonly property bool gridNonDefault: gridSize !== 32
                     Canvas {
                         id: editGridCanvas
-                        x: editGridOverlay.safeLeft
-                        y: editGridOverlay.safeTop
-                        width: editGridOverlay.safeWidth
-                        height: editGridOverlay.safeHeight
+                        x: editGridOverlay.zoneLeft
+                        y: editGridOverlay.zoneTop
+                        width: editGridOverlay.zoneWidth
+                        height: editGridOverlay.zoneHeight
                         visible: editGridOverlay.gridVisible
                         onPaint: {
                             const ctx = getContext("2d");
@@ -2036,33 +2108,33 @@ Scope {
                     }
 
                     Rectangle {
-                        x: editGridOverlay.safeLeft
-                        y: editGridOverlay.safeTop
-                        width: editGridOverlay.safeWidth
-                        height: editGridOverlay.safeHeight
+                        x: editGridOverlay.zoneLeft
+                        y: editGridOverlay.zoneTop
+                        width: editGridOverlay.zoneWidth
+                        height: editGridOverlay.zoneHeight
                         color: "transparent"
                         radius: Appearance.rounding.small
                         border.width: 1
                         border.color: CF.ColorUtils.applyAlpha(editGridOverlay.gridColor, 0.18)
                     }
 
-                    // Crosshair follows the usable widget area, not raw screen center.
+                    // Crosshair follows the adaptive panel-safe widget area.
                     Rectangle {
-                        x: Math.floor(editGridOverlay.safeLeft + editGridOverlay.safeWidth / 2)
-                        y: editGridOverlay.safeTop
-                        width: 1; height: editGridOverlay.safeHeight
+                        x: Math.floor(editGridOverlay.zoneLeft + editGridOverlay.zoneWidth / 2)
+                        y: editGridOverlay.zoneTop
+                        width: 1; height: editGridOverlay.zoneHeight
                         color: CF.ColorUtils.applyAlpha(editGridOverlay.crosshairColor, 0.08)
                     }
                     Rectangle {
-                        x: editGridOverlay.safeLeft
-                        y: Math.floor(editGridOverlay.safeTop + editGridOverlay.safeHeight / 2)
-                        width: editGridOverlay.safeWidth; height: 1
+                        x: editGridOverlay.zoneLeft
+                        y: Math.floor(editGridOverlay.zoneTop + editGridOverlay.zoneHeight / 2)
+                        width: editGridOverlay.zoneWidth; height: 1
                         color: CF.ColorUtils.applyAlpha(editGridOverlay.crosshairColor, 0.08)
                     }
                     // Center dot
                     Rectangle {
-                        x: Math.floor(editGridOverlay.safeLeft + editGridOverlay.safeWidth / 2) - 3
-                        y: Math.floor(editGridOverlay.safeTop + editGridOverlay.safeHeight / 2) - 3
+                        x: Math.floor(editGridOverlay.zoneLeft + editGridOverlay.zoneWidth / 2) - 3
+                        y: Math.floor(editGridOverlay.zoneTop + editGridOverlay.zoneHeight / 2) - 3
                         width: 6; height: 6; radius: 3
                         color: CF.ColorUtils.applyAlpha(editGridOverlay.crosshairColor, 0.25)
                     }
@@ -2187,7 +2259,7 @@ Scope {
                             editGridOverlay.safeBottom - height - 12))
                         width: Math.min(editGridOverlay.safeWidth,
                             editBarRow.implicitWidth + 24)
-                        height: 48
+                        height: 52
 
                         Toolbar {
                             anchors.fill: parent
@@ -2286,10 +2358,38 @@ Scope {
                                 color: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.62)
                             }
 
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: editGridOverlay.safeWidth >= 900
+                                text: Translation.tr("Widgets")
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                font.weight: Font.Medium
+                                color: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.72)
+                            }
+
+                            RippleButton {
+                                width: 26; height: 36
+                                enabled: widgetToggleRail.contentX > 1
+                                opacity: enabled ? 1 : 0.28
+                                buttonRadius: Appearance.rounding.full
+                                colBackground: "transparent"
+                                colBackgroundHover: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.08)
+                                colRipple: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.12)
+                                releaseAction: () => widgetToggleRail.scrollBy(-144)
+                                cancelAction: () => {}
+                                contentItem: MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "chevron_left"
+                                    iconSize: 18
+                                    color: Appearance.colors.colOnLayer2
+                                }
+                                StyledToolTip { text: Translation.tr("Previous widgets") }
+                            }
+
                             Flickable {
                                 id: widgetToggleRail
                                 width: Math.max(72, Math.min(420,
-                                    editGridOverlay.safeWidth - 330,
+                                    editGridOverlay.safeWidth - 530,
                                     widgetToggleRow.implicitWidth))
                                 height: 36
                                 contentWidth: widgetToggleRow.implicitWidth
@@ -2298,6 +2398,24 @@ Scope {
                                 interactive: contentWidth > width
                                 boundsBehavior: Flickable.StopAtBounds
                                 flickableDirection: Flickable.HorizontalFlick
+
+                                function scrollBy(delta: real): void {
+                                    const maxX = Math.max(0, contentWidth - width)
+                                    contentX = Math.max(0, Math.min(maxX, contentX + delta))
+                                }
+
+                                WheelHandler {
+                                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                    onWheel: event => {
+                                        const horizontal = event.angleDelta.x
+                                        const vertical = event.angleDelta.y
+                                        const delta = Math.abs(horizontal) > Math.abs(vertical)
+                                            ? -horizontal : -vertical
+                                        widgetToggleRail.scrollBy(delta === 0 ? 0
+                                            : (delta > 0 ? 120 : -120))
+                                        event.accepted = true
+                                    }
+                                }
 
                                 Row {
                                     id: widgetToggleRow
@@ -2334,9 +2452,10 @@ Scope {
                                     colBackgroundToggled: CF.ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.16)
                                     colBackgroundToggledHover: CF.ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.24)
                                     colRipple: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.12)
-                                    downAction: () => DesktopWidgetLayout.setEnabled(
+                                    releaseAction: () => DesktopWidgetLayout.setEnabled(
                                         bgRoot.screenName, quickWidgetButton.modelData.key,
                                         !quickWidgetButton.widgetEnabled)
+                                    cancelAction: () => {}
                                     contentItem: MaterialSymbol {
                                         anchors.centerIn: parent
                                         text: quickWidgetButton.modelData.icon
@@ -2364,9 +2483,10 @@ Scope {
                                     colBackgroundToggled: CF.ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.16)
                                     colBackgroundToggledHover: CF.ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.24)
                                     colRipple: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.12)
-                                    downAction: () => DesktopWidgetLayout.setEnabled(
+                                    releaseAction: () => DesktopWidgetLayout.setEnabled(
                                         bgRoot.screenName, "custom." + customWidgetButton.modelData.id,
                                         !customWidgetButton.widgetEnabled)
+                                    cancelAction: () => {}
                                     contentItem: MaterialSymbol {
                                         anchors.centerIn: parent
                                         text: customWidgetButton.modelData.icon || "widgets"
@@ -2379,6 +2499,26 @@ Scope {
                                 }
                             }
 
+                            RippleButton {
+                                width: 26; height: 36
+                                enabled: widgetToggleRail.contentX
+                                    < Math.max(0, widgetToggleRail.contentWidth - widgetToggleRail.width) - 1
+                                opacity: enabled ? 1 : 0.28
+                                buttonRadius: Appearance.rounding.full
+                                colBackground: "transparent"
+                                colBackgroundHover: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.08)
+                                colRipple: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.12)
+                                releaseAction: () => widgetToggleRail.scrollBy(144)
+                                cancelAction: () => {}
+                                contentItem: MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "chevron_right"
+                                    iconSize: 18
+                                    color: Appearance.colors.colOnLayer2
+                                }
+                                StyledToolTip { text: Translation.tr("More widgets") }
+                            }
+
                             // Separator
                             Rectangle {
                                 width: 1; height: 24
@@ -2386,9 +2526,13 @@ Scope {
                                 color: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.12)
                             }
 
-                            // Toggle widget manager panel
+                            // Toggle the richer widget manager. Keep a visible
+                            // label here: this is the primary navigation path,
+                            // not an ambiguous add button.
                             RippleButton {
-                                width: 36; height: 36
+                                id: manageWidgetsButton
+                                width: manageWidgetsContent.implicitWidth + 16
+                                height: 36
                                 buttonRadius: Appearance.rounding.full
                                 toggled: widgetManagerPanel.shown
                                 colBackground: "transparent"
@@ -2396,14 +2540,30 @@ Scope {
                                 colBackgroundToggled: CF.ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.16)
                                 colBackgroundToggledHover: CF.ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.24)
                                 colRipple: CF.ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.12)
-                                downAction: () => { widgetManagerPanel.shown = !widgetManagerPanel.shown }
-                                contentItem: MaterialSymbol {
+                                releaseAction: () => { widgetManagerPanel.shown = !widgetManagerPanel.shown }
+                                cancelAction: () => {}
+                                contentItem: Row {
+                                    id: manageWidgetsContent
                                     anchors.centerIn: parent
-                                    text: "add_circle"
-                                    iconSize: 20
-                                    color: parent.toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                                    spacing: 4
+                                    MaterialSymbol {
+                                        text: "tune"
+                                        iconSize: 17
+                                        color: manageWidgetsButton.toggled
+                                            ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    StyledText {
+                                        visible: editGridOverlay.safeWidth >= 1000
+                                        text: Translation.tr("Manage widgets")
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        font.weight: Font.Medium
+                                        color: manageWidgetsButton.toggled
+                                            ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
                                 }
-                                StyledToolTip { text: Translation.tr("Manage widgets") }
+                                StyledToolTip { text: Translation.tr("Search, filter, lock and configure widgets") }
                             }
 
                             // Open full settings
@@ -2463,17 +2623,43 @@ Scope {
                         active: shown
                         visible: shown
                         z: 150
-                        x: Math.max(editGridOverlay.safeLeft,
-                            Math.round(editGridOverlay.safeRight - width))
-                        y: Math.max(editGridOverlay.safeTop,
-                            Math.round(editGridOverlay.safeBottom
-                                - editControlsBar.height - height - 36))
+                        x: 0
+                        y: 0
+
+                        function restoreGeometry(): void {
+                            if (!widgetManagerPanel.shown)
+                                return
+                            Qt.callLater(() => {
+                                const panel = widgetManagerPanel.item
+                                if (!panel)
+                                    return
+                                const maxX = Math.max(0,
+                                    (widgetManagerPanel.parent?.width ?? 0) - panel.width)
+                                const maxY = Math.max(0,
+                                    (widgetManagerPanel.parent?.height ?? 0) - panel.height)
+                                const rx = Math.max(0, Math.min(1,
+                                    Number(Persistent.states?.desktopWidgets?.managerXRatio ?? 0.76)))
+                                const ry = Math.max(0, Math.min(1,
+                                    Number(Persistent.states?.desktopWidgets?.managerYRatio ?? 0.42)))
+                                widgetManagerPanel.x = Math.round(maxX * rx)
+                                widgetManagerPanel.y = Math.round(maxY * ry)
+                            })
+                        }
+
+                        onShownChanged: if (shown) restoreGeometry()
+
                         sourceComponent: WidgetManagerPanel {
                             outputName: bgRoot.screen?.name ?? ""
                             canvasWidth: widgetManagerPanel.parent?.width ?? 800
                             canvasHeight: widgetManagerPanel.parent?.height ?? 600
                             screenWidth: bgRoot.screen.width
                             screenHeight: bgRoot.screen.height
+                            onCloseRequested: widgetManagerPanel.shown = false
+                            onFocusWidgetRequested: layoutKey => {
+                                GlobalStates.selectDesktopWidget(
+                                    bgRoot.screenName + "::" + layoutKey)
+                            }
+                            Component.onCompleted: widgetManagerPanel.restoreGeometry()
                         }
                     }
                 }

@@ -206,7 +206,7 @@ AbstractBackgroundWidget {
                 weatherChip.implicitWidth + Math.round(18 * root.scaleFactor))
             implicitHeight: weatherChip.implicitHeight + Math.round(9 * root.scaleFactor)
             radius: height / 2
-            color: Appearance.colors.colTertiaryContainer
+            color: root.widgetSemanticContainer(root.widgetTertiaryRole)
 
             RowLayout {
                 id: weatherChip
@@ -219,14 +219,14 @@ AbstractBackgroundWidget {
                     text: root.weatherLine.icon
                     fill: 1
                     iconSize: Math.round(Appearance.font.pixelSize.normal * root.scaleFactor)
-                    color: Appearance.colors.colOnTertiaryContainer
+                    color: root.widgetSemanticOnContainer(root.widgetTertiaryRole)
                 }
 
                 StyledText {
                     Layout.fillWidth: true
                     text: root.weatherLine.text
                     elide: Text.ElideRight
-                    color: Appearance.colors.colOnTertiaryContainer
+                    color: root.widgetSemanticOnContainer(root.widgetTertiaryRole)
                     font.pixelSize: Math.round(Appearance.font.pixelSize.smaller * root.scaleFactor)
                     font.weight: Font.Medium
                 }
@@ -245,9 +245,11 @@ AbstractBackgroundWidget {
                 Layout.fillWidth: true
                 implicitHeight: Math.round(38 * root.scaleFactor)
                 buttonRadius: height / 2
-                colBackground: Appearance.colors.colPrimaryContainer
-                colBackgroundHover: Appearance.colors.colPrimaryContainerHover
-                colRipple: Appearance.colors.colPrimaryContainerActive
+                colBackground: root.widgetSemanticContainer(root.widgetPrimaryRole)
+                colBackgroundHover: ColorUtils.mix(root.widgetSemanticContainer(root.widgetPrimaryRole),
+                    root.widgetSemanticOnContainer(root.widgetPrimaryRole), 0.90)
+                colRipple: ColorUtils.mix(root.widgetSemanticContainer(root.widgetPrimaryRole),
+                    root.widgetSemanticOnContainer(root.widgetPrimaryRole), 0.80)
                 onClicked: root.lockScreen()
                 contentItem: RowLayout {
                     spacing: Math.round(6 * root.scaleFactor)
@@ -258,11 +260,11 @@ AbstractBackgroundWidget {
                         text: "lock"
                         fill: 1
                         iconSize: Math.round(17 * root.scaleFactor)
-                        color: Appearance.colors.colOnPrimaryContainer
+                        color: root.widgetSemanticOnContainer(root.widgetPrimaryRole)
                     }
                     StyledText {
                         text: Translation.tr("Lock")
-                        color: Appearance.colors.colOnPrimaryContainer
+                        color: root.widgetSemanticOnContainer(root.widgetPrimaryRole)
                         font.pixelSize: Math.round(Appearance.font.pixelSize.smaller * root.scaleFactor)
                         font.weight: Font.Medium
                     }
@@ -276,16 +278,18 @@ AbstractBackgroundWidget {
                 implicitWidth: Math.round(38 * root.scaleFactor)
                 implicitHeight: Math.round(38 * root.scaleFactor)
                 buttonRadius: height / 2
-                colBackground: Appearance.colors.colSecondaryContainer
-                colBackgroundHover: Appearance.colors.colSecondaryContainerHover
-                colRipple: Appearance.colors.colSecondaryContainerActive
+                colBackground: root.widgetSemanticContainer(root.widgetSecondaryRole)
+                colBackgroundHover: ColorUtils.mix(root.widgetSemanticContainer(root.widgetSecondaryRole),
+                    root.widgetSemanticOnContainer(root.widgetSecondaryRole), 0.90)
+                colRipple: ColorUtils.mix(root.widgetSemanticContainer(root.widgetSecondaryRole),
+                    root.widgetSemanticOnContainer(root.widgetSecondaryRole), 0.80)
                 onClicked: GlobalStates.settingsOverlayOpen = true
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
                     text: "settings"
                     fill: 1
                     iconSize: Math.round(17 * root.scaleFactor)
-                    color: Appearance.colors.colOnSecondaryContainer
+                    color: root.widgetSemanticOnContainer(root.widgetSecondaryRole)
                 }
                 StyledToolTip {
                     text: Translation.tr("Settings")
@@ -296,18 +300,18 @@ AbstractBackgroundWidget {
                 implicitWidth: Math.round(38 * root.scaleFactor)
                 implicitHeight: Math.round(38 * root.scaleFactor)
                 buttonRadius: height / 2
-                colBackground: Appearance.colors.colErrorContainer
-                colBackgroundHover: ColorUtils.mix(Appearance.colors.colErrorContainer,
-                    Appearance.colors.colOnErrorContainer, 0.9)
-                colRipple: ColorUtils.mix(Appearance.colors.colErrorContainer,
-                    Appearance.colors.colOnErrorContainer, 0.8)
+                colBackground: root.widgetSemanticContainer(root.widgetSignalRole)
+                colBackgroundHover: ColorUtils.mix(root.widgetSemanticContainer(root.widgetSignalRole),
+                    root.widgetSemanticOnContainer(root.widgetSignalRole), 0.90)
+                colRipple: ColorUtils.mix(root.widgetSemanticContainer(root.widgetSignalRole),
+                    root.widgetSemanticOnContainer(root.widgetSignalRole), 0.80)
                 onClicked: GlobalStates.sessionOpen = true
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
                     text: "power_settings_new"
                     fill: 1
                     iconSize: Math.round(17 * root.scaleFactor)
-                    color: Appearance.colors.colOnErrorContainer
+                    color: root.widgetSemanticOnContainer(root.widgetSignalRole)
                 }
                 StyledToolTip {
                     text: Translation.tr("Power")

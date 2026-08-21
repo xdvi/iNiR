@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -42,6 +43,26 @@ ContentPage {
     readonly property bool spectrumEnabled: root.barAppearance === "pill"
         ? (Config.options?.bar?.pill?.musicViz ?? true)
         : (Config.options?.bar?.visualizer?.enable ?? false)
+    readonly property color workspaceThemeIndicatorColor: Appearance.zzzEverywhere ? Appearance.zzz.accentSoft
+        : Appearance.angelEverywhere ? Appearance.angel.colPrimary : Appearance.colors.colPrimary
+    readonly property color workspaceIndicatorPreviewColor: {
+        const saved = Config.options?.bar?.workspaces?.indicatorColor ?? ""
+        if (saved.length === 0)
+            return root.workspaceThemeIndicatorColor
+        const parsed = Qt.color(saved)
+        return parsed.valid ? parsed : root.workspaceThemeIndicatorColor
+    }
+
+    ColorDialog {
+        id: workspaceIndicatorColorDialog
+        selectedColor: root.workspaceIndicatorPreviewColor
+        onAccepted: Config.setNestedValue("bar.workspaces.indicatorColor", selectedColor.toString())
+    }
+
+    SettingsNativeDialogGuard {
+        dialog: workspaceIndicatorColorDialog
+        dialogKey: "bar-workspace-indicator-color"
+    }
 
     function setSpectrumEnabled(enabled): void {
         if (!root.spectrumControlsReady)
@@ -479,6 +500,119 @@ ContentPage {
                 }
 
                 ContentSubsection {
+                    visible: root.m3HasWidget("clockWidget")
+                    title: Translation.tr("Clock")
+
+                    ConfigRow {
+                        uniform: true
+
+                        FontSelector {
+                            id: m3TimeFontSelector
+                            label: Translation.tr("Time font")
+                            icon: "schedule"
+                            selectedFont: Config.options?.bar?.m3?.clock?.timeFontFamily ?? ""
+                            onSelectedFontChanged: {
+                                root.setM3Value("bar.m3.clock.timeFontFamily", selectedFont)
+                            }
+                            Connections {
+                                target: Config.options?.bar?.m3?.clock ?? null
+                                function onTimeFontFamilyChanged() {
+                                    m3TimeFontSelector.selectedFont = Config.options.bar.m3.clock.timeFontFamily
+                                }
+                            }
+                        }
+
+                        ConfigSpinBox {
+                            icon: "format_size"
+                            text: Translation.tr("Time size (px)")
+                            description: Translation.tr("0 = inherit global size")
+                            value: Config.options?.bar?.m3?.clock?.timePixelSize ?? 0
+                            from: 0
+                            to: 64
+                            stepSize: 1
+                            onValueChanged: root.setM3Value("bar.m3.clock.timePixelSize", value)
+                            StyledToolTip {
+                                text: Translation.tr("Pixel size of the time digits in the M3 bar clock. 0 inherits the global typography scale.")
+                            }
+                        }
+                    }
+
+                    ConfigRow {
+                        uniform: true
+
+                        FontSelector {
+                            id: m3DateFontSelector
+                            label: Translation.tr("Date font")
+                            icon: "font_download"
+                            selectedFont: Config.options?.bar?.m3?.clock?.dateFontFamily ?? ""
+                            onSelectedFontChanged: {
+                                root.setM3Value("bar.m3.clock.dateFontFamily", selectedFont)
+                            }
+                            Connections {
+                                target: Config.options?.bar?.m3?.clock ?? null
+                                function onDateFontFamilyChanged() {
+                                    m3DateFontSelector.selectedFont = Config.options.bar.m3.clock.dateFontFamily
+                                }
+                            }
+                        }
+
+                        ConfigSpinBox {
+                            icon: "format_size"
+                            text: Translation.tr("Date size (px)")
+                            description: Translation.tr("0 = inherit global size")
+                            value: Config.options?.bar?.m3?.clock?.datePixelSize ?? 0
+                            from: 0
+                            to: 64
+                            stepSize: 1
+                            onValueChanged: root.setM3Value("bar.m3.clock.datePixelSize", value)
+                            StyledToolTip {
+                                text: Translation.tr("Pixel size of the date string in the M3 bar clock. 0 inherits the global typography scale.")
+                            }
+                        }
+                    }
+
+                    RippleButton {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 32
+                        buttonRadius: Appearance.rounding.small
+                        colBackground: Appearance.colors.colLayer2
+                        colBackgroundHover: Appearance.colors.colLayer2Hover
+                        enabled: (Config.options?.bar?.m3?.clock?.timeFontFamily ?? "").length > 0
+                            || (Config.options?.bar?.m3?.clock?.timePixelSize ?? 0) > 0
+                            || (Config.options?.bar?.m3?.clock?.dateFontFamily ?? "").length > 0
+                            || (Config.options?.bar?.m3?.clock?.datePixelSize ?? 0) > 0
+                        opacity: enabled ? 1 : 0.5
+                        onClicked: root.setM3Values({
+                            "bar.m3.clock.timeFontFamily": "",
+                            "bar.m3.clock.timePixelSize": 0,
+                            "bar.m3.clock.dateFontFamily": "",
+                            "bar.m3.clock.datePixelSize": 0
+                        })
+
+                        contentItem: RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 5
+
+                            MaterialSymbol {
+                                text: "restart_alt"
+                                iconSize: 15
+                                color: Appearance.colors.colOnLayer1
+                            }
+                            StyledText {
+                                text: Translation.tr("Reset to default")
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.colors.colOnLayer1
+                            }
+                        }
+                    }
+
+                    SettingsNote {
+                        icon: "info"
+                        text: Translation.tr("Override the font and pixel size of the time and date in the M3 bar clock. Leave at 0 / pick the same family as your main font to keep the default look.")
+                    }
+                }
+
+                ContentSubsection {
                     title: Translation.tr("Surface")
 
                     ConfigSelectionArray {
@@ -752,6 +886,22 @@ ContentPage {
                             const labels = text.split(",").map(value => value.trim()).filter(value => value.length > 0)
                             if (labels.length > 0)
                                 root.setM3Value("bar.m3.workspaces.numberMap", labels)
+                        }
+                    }
+                }
+
+                ContentSubsection {
+                    visible: root.m3HasWidget("sysTray")
+                    title: Translation.tr("System tray")
+
+                    SettingsSwitch {
+                        Layout.fillWidth: true
+                        buttonIcon: "colors"
+                        text: Translation.tr("Match M3 colors")
+                        checked: Config.options?.bar?.m3?.tray?.monochromeIcons ?? true
+                        onCheckedChanged: root.setM3Value("bar.m3.tray.monochromeIcons", checked)
+                        StyledToolTip {
+                            text: Translation.tr("Use the tray's semantic M3 foreground color instead of each app's original icon colors")
                         }
                     }
                 }
@@ -1764,6 +1914,119 @@ ContentPage {
                 }
             }
 
+            ContentSubsection {
+                visible: root.barAppearance !== "m3" && root.barAppearance !== "pill"
+                title: Translation.tr("Clock")
+
+                ConfigRow {
+                    uniform: true
+
+                    FontSelector {
+                        id: barTimeFontSelector
+                        label: Translation.tr("Time font")
+                        icon: "schedule"
+                        selectedFont: Config.options?.bar?.clock?.timeFontFamily ?? ""
+                        onSelectedFontChanged: {
+                            Config.setNestedValue("bar.clock.timeFontFamily", selectedFont)
+                        }
+                        Connections {
+                            target: Config.options?.bar?.clock ?? null
+                            function onTimeFontFamilyChanged() {
+                                barTimeFontSelector.selectedFont = Config.options.bar.clock.timeFontFamily
+                            }
+                        }
+                    }
+
+                    ConfigSpinBox {
+                        icon: "format_size"
+                        text: Translation.tr("Time size (px)")
+                        description: Translation.tr("0 = inherit global size")
+                        value: Config.options?.bar?.clock?.timePixelSize ?? 0
+                        from: 0
+                        to: 64
+                        stepSize: 1
+                        onValueChanged: Config.setNestedValue("bar.clock.timePixelSize", value)
+                        StyledToolTip {
+                            text: Translation.tr("Pixel size of the time digits in the bar clock. 0 inherits the global typography scale.")
+                        }
+                    }
+                }
+
+                ConfigRow {
+                    uniform: true
+
+                    FontSelector {
+                        id: barDateFontSelector
+                        label: Translation.tr("Date font")
+                        icon: "font_download"
+                        selectedFont: Config.options?.bar?.clock?.dateFontFamily ?? ""
+                        onSelectedFontChanged: {
+                            Config.setNestedValue("bar.clock.dateFontFamily", selectedFont)
+                        }
+                        Connections {
+                            target: Config.options?.bar?.clock ?? null
+                            function onDateFontFamilyChanged() {
+                                barDateFontSelector.selectedFont = Config.options.bar.clock.dateFontFamily
+                            }
+                        }
+                    }
+
+                    ConfigSpinBox {
+                        icon: "format_size"
+                        text: Translation.tr("Date size (px)")
+                        description: Translation.tr("0 = inherit global size")
+                        value: Config.options?.bar?.clock?.datePixelSize ?? 0
+                        from: 0
+                        to: 64
+                        stepSize: 1
+                        onValueChanged: Config.setNestedValue("bar.clock.datePixelSize", value)
+                        StyledToolTip {
+                            text: Translation.tr("Pixel size of the date string in the bar clock. 0 inherits the global typography scale.")
+                        }
+                    }
+                }
+
+                RippleButton {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    buttonRadius: Appearance.rounding.small
+                    colBackground: Appearance.colors.colLayer2
+                    colBackgroundHover: Appearance.colors.colLayer2Hover
+                    enabled: (Config.options?.bar?.clock?.timeFontFamily ?? "").length > 0
+                        || (Config.options?.bar?.clock?.timePixelSize ?? 0) > 0
+                        || (Config.options?.bar?.clock?.dateFontFamily ?? "").length > 0
+                        || (Config.options?.bar?.clock?.datePixelSize ?? 0) > 0
+                    opacity: enabled ? 1 : 0.5
+                    onClicked: Config.setNestedValues({
+                        "bar.clock.timeFontFamily": "",
+                        "bar.clock.timePixelSize": 0,
+                        "bar.clock.dateFontFamily": "",
+                        "bar.clock.datePixelSize": 0
+                    })
+
+                    contentItem: RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        MaterialSymbol {
+                            text: "restart_alt"
+                            iconSize: 15
+                            color: Appearance.colors.colOnLayer1
+                        }
+                        StyledText {
+                            text: Translation.tr("Reset to default")
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.colors.colOnLayer1
+                        }
+                    }
+                }
+
+                SettingsNote {
+                    icon: "info"
+                    text: Translation.tr("Override the font and pixel size of the time and date in the bar clock. Leave at 0 / pick the same family as your main font to keep the default look.")
+                }
+            }
+
             SettingsSwitch {
                 buttonIcon: "deployed_code"
                 text: Translation.tr("Float style drop shadow")
@@ -2382,6 +2645,70 @@ ContentPage {
                 onCheckedChanged: Config.setNestedValue("bar.workspaces.invertScroll", checked)
                 StyledToolTip {
                     text: Translation.tr("Reverse mouse wheel direction for switching workspaces")
+                }
+            }
+
+            SettingsDivider {}
+
+            ContentSubsection {
+                title: Translation.tr("Color")
+
+                ConfigRow {
+                    uniform: true
+
+                    SettingsSwitch {
+                        buttonIcon: "auto_awesome"
+                        text: Translation.tr("Automatic")
+                        checked: Config.options?.bar?.workspaces?.automaticIndicatorColor ?? true
+                        onCheckedChanged: Config.setNestedValue("bar.workspaces.automaticIndicatorColor", checked)
+                    }
+
+                    RippleButton {
+                        Layout.fillWidth: true
+                        implicitHeight: 40
+                        enabled: !(Config.options?.bar?.workspaces?.automaticIndicatorColor ?? true)
+                        opacity: enabled ? 1 : 0.5
+                        colBackground: Appearance.colors.colLayer2
+                        colBackgroundHover: Appearance.colors.colLayer2Hover
+                        colRipple: Appearance.colors.colLayer2Active
+                        downAction: () => workspaceIndicatorColorDialog.open()
+
+                        contentItem: RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            spacing: 8
+
+                            Rectangle {
+                                width: 18
+                                height: 18
+                                radius: 9
+                                color: root.workspaceIndicatorPreviewColor
+                                border.width: 1
+                                border.color: Appearance.colors.colOutline
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: Translation.tr("Color")
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.colors.colOnLayer1
+                            }
+
+                            StyledText {
+                                text: root.workspaceIndicatorPreviewColor.toString().toUpperCase().substring(0, 7)
+                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.family: Appearance.font.family.monospace
+                                color: Appearance.colors.colSubtext
+                            }
+
+                            MaterialSymbol {
+                                text: "edit"
+                                iconSize: 16
+                                color: Appearance.colors.colSubtext
+                            }
+                        }
+                    }
                 }
             }
 

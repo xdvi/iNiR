@@ -2,7 +2,7 @@
 
 > A complete desktop shell built on [Quickshell](https://quickshell.org/) for the [Niri](https://github.com/YaLTeR/niri) Wayland compositor.
 
-**Version**: 2.29.0 · **Stack**: QML (Quickshell), Bash, Python, Go
+**Version**: 2.29.1 · **Stack**: QML (Quickshell), Bash, Python, Go
 
 Originally forked from [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland) (illogical-impulse). Secondary Hyprland support is maintained.
 
@@ -27,8 +27,8 @@ Two mutually exclusive UI families, switchable at runtime (`Super+Shift+W`):
 |---|---|---|
 | Active when | `panelFamily !== "waffle"` | `panelFamily === "waffle"` |
 | Visual tokens | `Appearance.*` | `Looks.*` |
-| Styles | material, cards, aurora, inir, angel, zzz | Single fluent style |
-| Bar | Top (or vertical) | Bottom (Win11 taskbar) |
+| Styles | material, cards, aurora, inir, angel, zzz, cookie | Single fluent style |
+| Bar | Top (or vertical; bar.appearanceStyle selects classic/islands/scenic/frame, pill, or m3) | Bottom (Win11 taskbar) |
 | App launcher | Overview | StartMenu with search |
 | Right panel | SidebarRight | ActionCenter + NotificationCenter |
 | Panels | ii (iiBar, iiDock, iiSidebarLeft, ...) | w (wBar, wStartMenu, wActionCenter, ... + shared ii panels) |
@@ -43,7 +43,7 @@ PanelLoader {
 ```
 Loads when ALL conditions are true: `Config.ready` + identifier in `enabledPanels` array + `extraCondition`.
 
-Style dispatch priority: **zzz > angel > inir > aurora > material** (`Appearance.qml`: `zzzEverywhere`/`angelEverywhere`/`inirEverywhere`/`auroraEverywhere` are `globalStyle` checks; `auroraEverywhere` is also true when `globalStyle === "angel"`, so angel must be checked before aurora wherever both matter). Cards is a material variant (no separate dispatch).
+Style dispatch priority: **cookie > zzz > angel > inir > aurora > material** (`Appearance.qml`: `cookieEverywhere`/`zzzEverywhere`/`angelEverywhere`/`inirEverywhere`/`auroraEverywhere` are `globalStyle` checks; `auroraEverywhere` is also true when `globalStyle === "angel"`, so angel must be checked before aurora wherever both matter). Cards is a material variant (no separate dispatch).
 
 ## Directory Structure
 
@@ -64,6 +64,8 @@ modules/                      # UI module directories
 │   ├── Config.qml            # Central config (JsonAdapter)
 │   └── widgets/              # Reusable widgets + qmldir
 ├── bar/                      # Top bar (ii family)
+├── barM3/                    # Material 3 bar — independent layout model, bar.appearanceStyle "m3"
+├── background/               # Wallpaper backdrop + desktop widgets + desktop items
 ├── sidebarLeft/              # AI chat, YT Music, widgets
 ├── sidebarRight/             # Toggles, calendar, tools
 ├── settings/                 # All config UI pages
@@ -86,7 +88,7 @@ services/                     # Runtime singletons (+ services/deferred/)
 ├── CompositorService.qml     # Compositor detection (Niri vs Hyprland)
 ├── Network.qml               # NetworkManager integration
 ├── Weather.qml               # Weather polling + privacy-aware location
-├── Bluetooth.qml             # BlueZ device management
+├── BluetoothStatus.qml       # BlueZ device management
 ├── Translation.qml           # i18n string lookup
 ├── DevNavigation.qml         # Session-only semantic UI navigation + dev IPC
 └── [more services]
@@ -152,6 +154,9 @@ docs/                         # User documentation
 | `Weather` | medium | Weather polling + privacy-aware location |
 | `Network` | medium | NetworkManager integration |
 | `Wallpapers` | medium | Wallpaper management + theming pipeline |
+| `DesktopItems` | background | Desktop item persistence + undo (desktop-items.json) |
+| `DesktopWidgetLayout` | background | Per-output widget layout (`background.widgets.outputOverrides`) |
+| `LyricsService` | media | Synchronized lyrics for media controls |
 
 All three wallpaper pickers (grid, coverflow, launcher) apply through
 `Wallpapers.applySelectionTarget()`, so the owning wallpaper engine and theming
@@ -161,6 +166,15 @@ while the same transient path is exposed to the internal background renderer
 for videos, GIFs, parallax, or systems without awww. Neither path writes config
 or regenerates colours, and cancelling resynchronizes the configured wallpaper.
 No picker draws the desktop wallpaper directly.
+
+`modules/background/Background.qml` is the per-output desktop surface: it renders
+the wallpaper and hosts the desktop widgets and desktop items. `DesktopWidgetLayout`
+maps each widget instance to its output through `Config.options.background.widgets.outputOverrides`
+plus `screenList`/`layerOrder`; `DesktopItems` persists icons to
+`Directories.stateUserPath/desktop-items.json` (schema v1) with an undo tombstone,
+and `modules/background/desktopItems/` provides the icon delegate, drop coordinator
+and image-choice surfaces. Layout editing runs through the shell-wide
+`ShellEditSession` service and `modules/common/widgets/ShellLayoutEditorWindow.qml`.
 
 These are **stability boundaries** — prefer add-only changes, verify all dependents before reshaping.
 
@@ -236,7 +250,7 @@ for the current maximum).
 inir run                    # Launch the shell
 inir restart                # Graceful restart
 inir logs | tail -50        # Check for errors
-inir status                 # Runtime health check
+inir status                 # Installation/repository diagnostic summary
 inir doctor                 # Auto-diagnose + fix
 inir settings               # Open settings GUI
 

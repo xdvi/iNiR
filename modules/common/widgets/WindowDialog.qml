@@ -36,7 +36,7 @@ Rectangle {
     Behavior on color {
         animation: ColorAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
     }
-    visible: dialogBackground.implicitHeight > 0
+    visible: root.show || dialogBackground.implicitHeight > 0 || contentColumn.opacity > 0
 
     onShowChanged: dialogBackgroundHeightAnimation.easing.bezierCurve = show
         ? Appearance.animationCurves.emphasizedDecel
@@ -46,6 +46,7 @@ Rectangle {
 
     MouseArea { // Clicking outside the dialog should dismiss
         anchors.fill: parent
+        enabled: root.show
         acceptedButtons: Qt.AllButtons
         hoverEnabled: true
         onPressed: root.dismiss()
@@ -53,7 +54,10 @@ Rectangle {
 
     GlassBackground {
         id: dialogBackground
-        anchors.horizontalCenter: parent.horizontalCenter
+        // Keep the animated chrome on whole-pixel geometry. Dialog content uses
+        // NativeRendering, which Qt documents as unsuitable under transforms;
+        // centering on a half pixel makes the softened result persist after open.
+        x: Math.round((root.width - implicitWidth) / 2)
         radius: Appearance.zzzEverywhere ? Appearance.zzz.panelRadius
             : Appearance.angelEverywhere ? Appearance.angel.roundingLarge
             : Appearance.inirEverywhere ? Appearance.inir.roundingLarge
@@ -85,11 +89,11 @@ Rectangle {
         
         readonly property real measuredContentHeight: contentColumn.implicitHeight
             + dialogBackground.contentPad * 2
-        readonly property real resolvedHeight: root.backgroundHeight >= 0
-            ? root.backgroundHeight : measuredContentHeight
-        property real targetY: root.height / 2 - resolvedHeight / 2
+        readonly property real resolvedHeight: Math.round(root.backgroundHeight >= 0
+            ? root.backgroundHeight : measuredContentHeight)
+        property real targetY: Math.round(root.height / 2 - resolvedHeight / 2)
         y: root.show ? targetY : (targetY - root.backgroundAnimationMovementDistance)
-        implicitWidth: root.backgroundWidth
+        implicitWidth: Math.round(root.backgroundWidth)
         // Corner radius is visual, not spacing. Zero-radius Angel and ZZZ
         // presets still need a readable inset around dialog content.
         readonly property real contentPad: Appearance.zzzEverywhere
@@ -137,18 +141,22 @@ Rectangle {
             }
         }
 
-        ColumnLayout {
-            id: contentColumn
-            anchors {
-                fill: parent
-                margins: dialogBackground.contentPad
-            }
-            spacing: 16
-            opacity: root.show ? 1 : 0
-            Behavior on opacity {
-                animation: NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
-            }
+    }
 
+    // Keep text and icons at their final pixel-aligned position while the chrome
+    // performs its reveal motion. Native-rendered glyphs stay crisp because they
+    // are no longer children of the translated/resized background item.
+    ColumnLayout {
+        id: contentColumn
+        x: dialogBackground.x + dialogBackground.contentPad
+        y: dialogBackground.targetY + dialogBackground.contentPad
+        width: Math.max(0, dialogBackground.implicitWidth - dialogBackground.contentPad * 2)
+        height: Math.max(0, dialogBackground.resolvedHeight - dialogBackground.contentPad * 2)
+        spacing: 16
+        opacity: root.show ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity {
+            animation: NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
         }
     }
 }

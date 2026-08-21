@@ -257,15 +257,26 @@ Singleton {
                 thickness = Math.max(0, restHeight + topGap - 12 * (1 - appGap) * scale)
             } else if (barVertical) {
                 thickness = Appearance.sizes.verticalBarWidth + Appearance.rounding.screenRounding
+            } else if (appearanceStyle === "m3") {
+                // M3Bar's layer surface includes the rounded screen decorator;
+                // reserve its visual extent, not only the exclusive-zone core.
+                thickness = Appearance.sizes.barHeight + Appearance.rounding.screenRounding
             } else {
+                const showBackground = Config.options?.bar?.showBackground ?? true
+                const cornerStyle = Config.options?.bar?.cornerStyle ?? 0
                 const detachedZzz = Appearance.zzzEverywhere
                     && Appearance.zzz.round
                     && appearanceStyle === "classic"
-                    && (Config.options?.bar?.showBackground ?? true)
-                    && ([1, 3].includes(Config.options?.bar?.cornerStyle ?? 0))
+                    && showBackground
+                    && ([1, 3].includes(cornerStyle))
+                const hugCorners = !Appearance.zzzEverywhere
+                    && appearanceStyle === "classic"
+                    && showBackground
+                    && cornerStyle === 0
                 thickness = detachedZzz
                     ? Appearance.sizes.baseBarHeight + Appearance.sizes.elevationMargin * 2
                     : Appearance.sizes.barHeight
+                        + (hugCorners ? Appearance.rounding.screenRounding : 0)
             }
             result.barEdge = barState.ok ? barState.slot : ""
             root._applyInset(result, result.barEdge, thickness)

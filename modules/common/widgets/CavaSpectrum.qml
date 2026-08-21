@@ -37,6 +37,11 @@ Canvas {
     property real edgeSoftness: 0.28
     property string frequencyProfile: "flat"
     property real accentStrength: 0.7
+    // Cava stereo raw output mirrors frequency space: highs at the outer
+    // edges and lows toward the center. Profiles must follow frequency, not
+    // raw x-position, or bass/treble weighting targets opposite bands on the
+    // left channel.
+    property bool mirroredStereo: Config.options?.appearance?.cava?.stereo ?? true
     property real startOpacity: 1
     property real endOpacity: 1
     property real startTaper: -1
@@ -161,7 +166,10 @@ Canvas {
         for (let i = 0; i < source.length; i++) {
             const domainPosition = start + (end - start)
                 * (source.length > 1 ? i / (source.length - 1) : 0.5)
-            const profileWeight = root._profileWeight(domainPosition)
+            const frequencyPosition = root.mirroredStereo
+                ? Math.abs(domainPosition * 2 - 1)
+                : domainPosition
+            const profileWeight = root._profileWeight(frequencyPosition)
             const mixedWeight = 1 + (profileWeight - 1) * strength
             output[i] = source[i] * mixedWeight
         }
@@ -369,10 +377,10 @@ Canvas {
     }
 
     function _roundedRect(ctx, x, y, width, height, radius): void {
+        ctx.beginPath()
         if (!(width > 0) || !(height > 0))
             return
         const r = Math.max(0, Math.min(radius, width / 2, height / 2))
-        ctx.beginPath()
         ctx.moveTo(x + r, y)
         ctx.lineTo(x + width - r, y)
         ctx.quadraticCurveTo(x + width, y, x + width, y + r)
@@ -602,6 +610,7 @@ Canvas {
     onBottomRightRadiusChanged: root._queuePaint()
     onEdgeSoftnessChanged: root._queuePaint()
     onFrequencyProfileChanged: root._queuePaint()
+    onMirroredStereoChanged: root._queuePaint()
     onAccentStrengthChanged: root._queuePaint()
     onStartOpacityChanged: root._queuePaint()
     onEndOpacityChanged: root._queuePaint()

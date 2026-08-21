@@ -344,45 +344,60 @@ Singleton {
     function launchEntry(entry): bool {
         if (!entry) return false
 
-        const desktopId = String(entry.id ?? entry.originalEntry?.id ?? "").trim()
-        const displayName = String(entry.name ?? entry.originalEntry?.name ?? desktopId).trim()
+        const rawEntry = entry.originalEntry ?? entry
+        const desktopId = String(entry.id ?? rawEntry?.id ?? "").trim()
+        const displayName = String(entry.name ?? rawEntry?.name ?? desktopId).trim()
+        const workingDirectory = String(entry.workingDirectory ?? rawEntry?.workingDirectory ?? "").trim()
 
-        // 1. Prefer direct command execution — most reliable, fixes DBusActivatable apps
-        //    like Telegram where gtk-launch may fail silently.
-        const command = Array.from(entry.command ?? entry.originalEntry?.command ?? []).map(arg => String(arg ?? "")).filter(arg => arg.length > 0)
+        // Prefer the parsed desktop command so every shell surface shares the
+        // same launch environment, transient-scope lifetime and Path= handling.
+        const command = Array.from(entry.command ?? rawEntry?.command ?? []).map(arg => String(arg ?? "")).filter(arg => arg.length > 0)
         if (command.length > 0) {
-            if (entry.runInTerminal ?? entry.originalEntry?.runInTerminal ?? false) {
+            if (entry.runInTerminal ?? rawEntry?.runInTerminal ?? false) {
                 const terminal = String(Config.options?.apps?.terminal ?? "kitty").trim() || "kitty"
                 const quotedCommand = command.map(arg => `'${StringUtils.shellSingleQuoteEscape(arg)}'`).join(" ")
                 if (terminal === "wezterm") {
-                    ShellExec.execCmd(`${terminal} start --always-new-process -- ${quotedCommand}`)
+                    ShellExec.execCmd(`${terminal} start --always-new-process -- ${quotedCommand}`, workingDirectory)
                 } else {
-                    ShellExec.execCmd(`${terminal} -e ${quotedCommand}`)
+                    ShellExec.execCmd(`${terminal} -e ${quotedCommand}`, workingDirectory)
                 }
                 return true
             }
 
-            ShellExec.execDetachedArgs(command, displayName.length > 0 ? `Launch ${displayName}` : "")
+            ShellExec.execDetachedArgs(command,
+                displayName.length > 0 ? `Launch ${displayName}` : "",
+                workingDirectory)
             return true
         }
 
-        // 2. Custom entry execute callback
-        //    - If wrapped (_decorateEntry result), call the raw originalEntry's execute
-        //    - If raw object with execute (non-desktop-entry results), call it directly
-        //    - Never call the decorated wrapper's execute — that wrapper recurses into launchEntry
-        if (entry.originalEntry && typeof entry.originalEntry.execute === "function") {
-            entry.originalEntry.execute()
-            return true
+        // Real desktop entries stay on ShellExec even when they have no usable
+        // command. This avoids falling back to DesktopEntry.execute(), which
+        // would inherit Quickshell's frozen/shell-private environment again.
+        if (desktopId.length > 0) {
+            return ShellExec.launchDesktopEntry(desktopId,
+                displayName.length > 0 ? `Launch ${displayName}` : "")
         }
-        if (!entry.originalEntry && typeof entry.execute === "function") {
+
+        // Non-desktop search providers can still expose their own callback.
+        if (typeof entry.execute === "function") {
             entry.execute()
             return true
         }
 
-        // 3. Fall back to gtk-launch for DBusActivatable / odd desktop entries
-        //    that have no usable Exec line.
-        if (desktopId.length > 0) {
-            return ShellExec.launchDesktopEntry(desktopId, displayName.length > 0 ? `Launch ${displayName}` : "")
+        return false
+    }
+
+    function launchDesktopAction(entry, action): bool {
+        if (!entry || !action) return false
+
+        const command = Array.from(action.command ?? []).map(arg => String(arg ?? "")).filter(arg => arg.length > 0)
+        if (command.length > 0) {
+            const actionName = String(action.name ?? entry.name ?? "").trim()
+            const workingDirectory = String(entry.workingDirectory ?? "").trim()
+            ShellExec.execDetachedArgs(command,
+                actionName.length > 0 ? `Launch ${actionName}` : "",
+                workingDirectory)
+            return true
         }
 
         return false
@@ -511,6 +526,67 @@ Singleton {
         }
 
         return null;
+    }
+
+    // Optional per-window identity rules (Config.options.windows.appIdentityRules).
+    // Apps whose windows all report the same app_id (e.g. browser PWA windows)
+    // can be grouped and displayed under a different desktop entry. Each rule:
+    //   { appIdRegex, titleRegex, desktopId }
+    // Both regexes are optional but at least one is required; the first
+    // matching rule wins; malformed rules are silently ignored. Empty rules
+    // leave every window's identity untouched. The configured desktopId is
+    // intentionally not resolved during parsing: desktop entries can load
+    // after the first window event.
+    property var _identityRules: []
+    property var _identityRulesKey: null
+
+    function _parseIdentityRules(): var {
+        const rules = Config.options?.windows?.appIdentityRules ?? []
+        const key = JSON.stringify(rules)
+        if (root._identityRulesKey === key)
+            return root._identityRules
+        const parsed = []
+        for (const rule of rules) {
+            if (!rule || typeof rule !== "object") continue
+            const desktopId = String(rule.desktopId ?? "").trim()
+            if (desktopId.length === 0) continue
+            const wantsAppIdRe = rule.appIdRegex !== undefined && rule.appIdRegex !== null
+                && String(rule.appIdRegex).length > 0
+            const wantsTitleRe = rule.titleRegex !== undefined && rule.titleRegex !== null
+                && String(rule.titleRegex).length > 0
+            if (!wantsAppIdRe && !wantsTitleRe) continue
+            let appIdRe = null
+            let titleRe = null
+            let valid = true
+            if (wantsAppIdRe) {
+                try { appIdRe = new RegExp(String(rule.appIdRegex), "i") } catch (e) { valid = false }
+            }
+            if (wantsTitleRe) {
+                try { titleRe = new RegExp(String(rule.titleRegex), "i") } catch (e) { valid = false }
+            }
+            if (!valid) continue
+            parsed.push({ appIdRe: appIdRe, titleRe: titleRe, desktopId: desktopId })
+        }
+        root._identityRules = parsed
+        root._identityRulesKey = key
+        return parsed
+    }
+
+    // Resolve the display identity of a running window. Accepts foreign-toplevel
+    // handles (appId) and Niri window objects (app_id) alike. Returns the
+    // window's reported app_id unless a configured rule remaps it.
+    function resolveWindowIdentity(toplevel): string {
+        const appId = String(toplevel?.appId ?? toplevel?.app_id ?? "")
+        if (appId.length === 0) return appId
+        const rules = root._parseIdentityRules()
+        if (rules.length === 0) return appId
+        const title = String(toplevel?.title ?? "")
+        for (const rule of rules) {
+            if (rule.appIdRe && !rule.appIdRe.test(appId)) continue
+            if (rule.titleRe && !rule.titleRe.test(title)) continue
+            return rule.desktopId
+        }
+        return appId
     }
 
     function guessIcon(str) {

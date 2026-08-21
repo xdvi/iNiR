@@ -69,10 +69,10 @@ MouseArea { // Notification group area
             target: background.anchors
             property: "leftMargin"
             to: (root.width + root.dismissOvershoot) * (destroyAnimation.left ? -1 : 1)
-            // Appearance.animation may be null during startup.
-            duration: root._dismissAnim ? root._dismissAnim.duration : 200
-            easing.type: root._dismissAnim ? root._dismissAnim.type : Easing.OutCubic
-            easing.bezierCurve: root._dismissAnim ? root._dismissAnim.bezierCurve : []
+            // Appearance animation tokens can be partially initialized during startup.
+            duration: Number(root._dismissAnim?.duration ?? 200)
+            easing.type: Number(root._dismissAnim?.type ?? Easing.OutCubic)
+            easing.bezierCurve: root._dismissAnim?.bezierCurve ?? []
         }
         onFinished: () => {
             root.notifications.forEach((notif) => {

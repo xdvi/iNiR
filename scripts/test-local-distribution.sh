@@ -195,6 +195,24 @@ step "launcher resolution"
 bash "$launcher" path >/dev/null
 bash "$launcher" status >/dev/null
 
+step "application launch environment"
+# XWayland is not guaranteed to own :0. Preserve live DISPLAY discovery and validation.
+shell_exec="$runtime_root/modules/common/functions/ShellExec.qml"
+inir_launcher="$runtime_root/scripts/inir"
+if ! grep -Fq 'systemctl --user show-environment' "$shell_exec" \
+        || ! grep -Fq '_manager_display="$(manager_value DISPLAY)"' "$shell_exec" \
+        || ! grep -Fq 'valid_display "$DISPLAY"' "$shell_exec" \
+        || ! grep -Fq 'for _x in /tmp/.X11-unix/X*' "$shell_exec"; then
+    printf 'FAIL: application launches do not recover the live XWayland DISPLAY environment\n' >&2
+    exit 1
+fi
+if ! grep -Fq 'vars_to_import+=("DISPLAY=$DISPLAY")' "$inir_launcher" \
+        || ! grep -Fq 'for _xsock in /tmp/.X11-unix/X*' "$inir_launcher" \
+        || ! grep -Fq 'systemctl --user set-environment "${vars_to_import[@]}"' "$inir_launcher"; then
+    printf 'FAIL: session environment does not publish the XWayland DISPLAY to the user manager\n' >&2
+    exit 1
+fi
+
 if command -v python3 &>/dev/null && [[ -f "$runtime_root/scripts/lib/generate-ipc-registry.py" ]]; then
     step "IPC registry freshness"
     python3 "$runtime_root/scripts/lib/generate-ipc-registry.py" --check

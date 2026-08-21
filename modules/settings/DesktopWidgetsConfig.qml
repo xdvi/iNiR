@@ -253,6 +253,108 @@ ContentPage {
         ]
     }
 
+    readonly property var _paletteWidgetKeys: [
+        "clock", "weather", "customImage", "imageConverter", "mediaControls",
+        "visualizer", "systemMonitor", "battery", "notes", "japaneseTypography",
+        "calendarUpcoming", "uptime", "worldClock", "userCard", "mascot", "newsTicker"
+    ]
+
+    function _semanticRoleOptions(): var {
+        return [
+            { displayName: Translation.tr("Primary"), icon: "palette", value: "primary" },
+            { displayName: Translation.tr("Secondary"), icon: "filter_2", value: "secondary" },
+            { displayName: Translation.tr("Tertiary"), icon: "filter_3", value: "tertiary" },
+            { displayName: Translation.tr("Warning"), icon: "warning", value: "warning" },
+            { displayName: Translation.tr("Signal"), icon: "error", value: "signal" },
+            { displayName: Translation.tr("Surface"), icon: "layers", value: "surface" }
+        ]
+    }
+
+    function _palettePresetOptions(): var {
+        return [
+            { value: "balanced", label: Translation.tr("Default"), roles: ["primary", "secondary", "tertiary"] },
+            { value: "primary", label: Translation.tr("Primary"), roles: ["primary", "primary", "primary"] },
+            { value: "secondary", label: Translation.tr("Secondary"), roles: ["secondary", "secondary", "secondary"] },
+            { value: "tertiary", label: Translation.tr("Tertiary"), roles: ["tertiary", "tertiary", "tertiary"] }
+        ]
+    }
+
+    function _palettePresetSpec(preset: string): var {
+        switch (preset) {
+        case "primary":
+            return { primary: "primary", secondary: "primary", tertiary: "primary", signal: "signal", surface: "surface" };
+        case "secondary":
+            return { primary: "secondary", secondary: "secondary", tertiary: "secondary", signal: "signal", surface: "surface" };
+        case "tertiary":
+            return { primary: "tertiary", secondary: "tertiary", tertiary: "tertiary", signal: "signal", surface: "surface" };
+        default:
+            return { primary: "primary", secondary: "secondary", tertiary: "tertiary", signal: "signal", surface: "surface" };
+        }
+    }
+
+    function _palettePresetForPath(configPath: string): string {
+        const roles = {
+            primary: String(Config.getNestedValue(configPath + ".palette.primary", "primary")),
+            secondary: String(Config.getNestedValue(configPath + ".palette.secondary", "secondary")),
+            tertiary: String(Config.getNestedValue(configPath + ".palette.tertiary", "tertiary")),
+            signal: String(Config.getNestedValue(configPath + ".palette.signal", "signal")),
+            surface: String(Config.getNestedValue(configPath + ".palette.surface", "surface"))
+        }
+        for (const preset of root._palettePresetOptions()) {
+            const spec = root._palettePresetSpec(preset.value)
+            if (roles.primary === spec.primary && roles.secondary === spec.secondary
+                    && roles.tertiary === spec.tertiary && roles.signal === spec.signal
+                    && roles.surface === spec.surface)
+                return preset.value
+        }
+        return "custom"
+    }
+
+    function _applyPalettePreset(configPath: string, preset: string): void {
+        const spec = root._palettePresetSpec(preset)
+        const prefix = configPath + ".palette."
+        const updates = {}
+        updates[prefix + "primary"] = spec.primary
+        updates[prefix + "secondary"] = spec.secondary
+        updates[prefix + "tertiary"] = spec.tertiary
+        updates[prefix + "signal"] = spec.signal
+        updates[prefix + "surface"] = spec.surface
+        Config.setNestedValues(updates)
+    }
+
+    function _commonPalettePreset(): string {
+        let common = ""
+        for (const widgetKey of root._paletteWidgetKeys) {
+            const preset = root._palettePresetForPath("background.widgets." + widgetKey)
+            if (preset === "custom") return "mixed"
+            if (common.length === 0) common = preset
+            else if (common !== preset) return "mixed"
+        }
+        return common.length > 0 ? common : "balanced"
+    }
+
+    function _applyPalettePresetAll(preset: string): void {
+        const spec = root._palettePresetSpec(preset)
+        const updates = {}
+        for (const widgetKey of root._paletteWidgetKeys) {
+            const prefix = "background.widgets." + widgetKey + ".palette."
+            updates[prefix + "primary"] = spec.primary
+            updates[prefix + "secondary"] = spec.secondary
+            updates[prefix + "tertiary"] = spec.tertiary
+            updates[prefix + "signal"] = spec.signal
+            updates[prefix + "surface"] = spec.surface
+        }
+        Config.setNestedValues(updates)
+    }
+
+    function _semanticPreviewColor(role: string): color {
+        switch (role) {
+        case "secondary": return Appearance.colors.colSecondary
+        case "tertiary": return Appearance.colors.colTertiary
+        default: return Appearance.colors.colPrimary
+        }
+    }
+
     function _manifestSupportsSurface(configKeys: var): bool {
         const keys = configKeys ?? {};
         return ["showBackground", "backgroundOpacity", "useBlur", "showBorder",
@@ -522,6 +624,8 @@ ContentPage {
         id: wrb
         required property string configPath
         required property var defaults
+        property bool resetSemanticPalette: wrb.configPath.startsWith("background.widgets.")
+            && !wrb.configPath.startsWith("background.widgets.custom.")
         property bool armed: false
         Layout.fillWidth: false
         Layout.alignment: Qt.AlignRight
@@ -548,6 +652,15 @@ ContentPage {
                 if (key === "enable")
                     continue
                 updates[wrb.configPath + "." + key] = wrb.defaults[key]
+            }
+            if (wrb.resetSemanticPalette) {
+                const spec = root._palettePresetSpec("balanced")
+                const prefix = wrb.configPath + ".palette."
+                updates[prefix + "primary"] = spec.primary
+                updates[prefix + "secondary"] = spec.secondary
+                updates[prefix + "tertiary"] = spec.tertiary
+                updates[prefix + "signal"] = spec.signal
+                updates[prefix + "surface"] = spec.surface
             }
             Config.setNestedValues(updates)
         }
@@ -655,6 +768,114 @@ ContentPage {
         }
     }
 
+    component WidgetPalettePresetPicker: ColumnLayout {
+        id: palettePicker
+        required property string configPath
+        property bool applyGlobally: false
+
+        Layout.fillWidth: true
+        spacing: 7
+
+        readonly property string currentPreset: {
+            void Config.revision
+            return palettePicker.applyGlobally
+                ? root._commonPalettePreset()
+                : root._palettePresetForPath(palettePicker.configPath)
+        }
+
+        GridLayout {
+            id: palettePresetGrid
+            Layout.fillWidth: true
+            columns: palettePicker.width >= 520 ? 4 : 2
+            columnSpacing: 6
+            rowSpacing: 6
+
+            Repeater {
+                model: root._palettePresetOptions()
+
+                delegate: RippleButton {
+                    id: presetButton
+                    required property var modelData
+                    readonly property color presetAccent: root._semanticPreviewColor(modelData.roles[0])
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 112
+                    Layout.preferredHeight: 38
+                    buttonRadius: Appearance.rounding.small
+                    toggled: palettePicker.currentPreset === modelData.value
+                    colBackground: Appearance.colors.colLayer2
+                    colBackgroundHover: Appearance.colors.colLayer2Hover
+                    colBackgroundToggled: ColorUtils.mix(
+                        Appearance.colors.colLayer2, presetButton.presetAccent, 0.93)
+                    colBackgroundToggledHover: ColorUtils.mix(
+                        Appearance.colors.colLayer2Hover, presetButton.presetAccent, 0.90)
+                    colRipple: ColorUtils.applyAlpha(presetButton.presetAccent, 0.10)
+                    colRippleToggled: ColorUtils.applyAlpha(presetButton.presetAccent, 0.14)
+                    downAction: () => {
+                        if (palettePicker.applyGlobally)
+                            root._applyPalettePresetAll(modelData.value)
+                        else
+                            root._applyPalettePreset(palettePicker.configPath, modelData.value)
+                    }
+
+                    contentItem: Item {
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: presetButton.buttonRadius
+                            color: "transparent"
+                            border.width: presetButton.toggled ? 1.5 : 0
+                            border.color: presetButton.presetAccent
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 6
+
+                            Row {
+                                spacing: -4
+                                Repeater {
+                                    model: presetButton.modelData.roles
+                                    Rectangle {
+                                        required property var modelData
+                                        required property int index
+                                        width: 14
+                                        height: 14
+                                        radius: 7
+                                        color: root._semanticPreviewColor(modelData)
+                                        border.width: 1
+                                        border.color: Qt.rgba(0, 0, 0, 0.25)
+                                        z: 3 - index
+                                    }
+                                }
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: presetButton.modelData.label
+                                color: presetButton.toggled
+                                    ? presetButton.presetAccent : Appearance.colors.colOnLayer2
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                font.weight: presetButton.toggled ? Font.DemiBold : Font.Normal
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        StyledText {
+            visible: palettePicker.currentPreset === "custom"
+                || palettePicker.currentPreset === "mixed"
+            text: palettePicker.currentPreset === "mixed"
+                ? Translation.tr("Widgets currently use different palettes")
+                : Translation.tr("Custom role mapping")
+            color: Appearance.colors.colSubtext
+            font.pixelSize: Appearance.font.pixelSize.smaller
+        }
+    }
+
     // ── Reusable appearance controls for any widget ──────────
     component WidgetAppearanceControls: ColumnLayout {
         id: wac
@@ -663,6 +884,8 @@ ContentPage {
         property bool hasDim: true
         property bool hasColorMode: true
         property bool hasCardControls: false
+        property bool hasSemanticPalette: !wac.configPath.startsWith("background.widgets.custom.")
+        property bool paletteDetailsOpen: false
         property int dimDefault: 0
 
         Layout.fillWidth: true
@@ -730,6 +953,89 @@ ContentPage {
                 configPath: wac.configPath + ".dim"
                 sliderFrom: 0; sliderTo: 100; sliderStep: 5
                 sliderValue: Config.getNestedValue(wac.configPath + ".dim", wac.configEntry?.dim ?? wac.dimDefault)
+            }
+        }
+
+        // ── Colors ──
+        ContentSubsection {
+            visible: wac.hasSemanticPalette
+            title: Translation.tr("Colors")
+
+            StyledText {
+                Layout.fillWidth: true
+                text: Translation.tr("Choose a palette preset. Fine tuning is optional and stays out of the way until you open it.")
+                color: Appearance.colors.colSubtext
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                wrapMode: Text.WordWrap
+            }
+
+            WidgetPalettePresetPicker {
+                configPath: wac.configPath
+            }
+
+            RippleButton {
+                Layout.fillWidth: false
+                Layout.alignment: Qt.AlignLeft
+                implicitWidth: paletteDetailsRow.implicitWidth + 20
+                implicitHeight: 30
+                buttonRadius: Appearance.rounding.full
+                toggled: wac.paletteDetailsOpen
+                colBackground: "transparent"
+                colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.07)
+                colBackgroundToggled: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.12)
+                colBackgroundToggledHover: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.18)
+                colRipple: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.10)
+                downAction: () => wac.paletteDetailsOpen = !wac.paletteDetailsOpen
+
+                contentItem: RowLayout {
+                    id: paletteDetailsRow
+                    anchors.centerIn: parent
+                    spacing: 5
+                    MaterialSymbol {
+                        text: wac.paletteDetailsOpen ? "expand_less" : "tune"
+                        iconSize: 16
+                        color: wac.paletteDetailsOpen
+                            ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                    }
+                    StyledText {
+                        text: Translation.tr("Customize roles")
+                        color: wac.paletteDetailsOpen
+                            ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                    }
+                }
+            }
+
+            ColumnLayout {
+                visible: wac.paletteDetailsOpen
+                Layout.fillWidth: true
+                spacing: 0
+
+                Repeater {
+                    model: [
+                        { key: "primary", label: Translation.tr("Main accent"), icon: "palette", fallback: "primary" },
+                        { key: "secondary", label: Translation.tr("Secondary accent"), icon: "filter_2", fallback: "secondary" },
+                        { key: "tertiary", label: Translation.tr("Tertiary accent"), icon: "filter_3", fallback: "tertiary" },
+                        { key: "signal", label: Translation.tr("Alerts"), icon: "error", fallback: "signal" },
+                        { key: "surface", label: Translation.tr("Surface"), icon: "layers", fallback: "surface" }
+                    ]
+
+                    delegate: WidgetSettingRow {
+                        required property var modelData
+                        label: modelData.label
+                        icon: modelData.icon
+                        trailing: false
+
+                        ConfigSelectionArray {
+                            Layout.fillWidth: true
+                            currentValue: String(Config.getNestedValue(
+                                wac.configPath + ".palette." + modelData.key, modelData.fallback))
+                            onSelected: newValue => Config.setNestedValue(
+                                wac.configPath + ".palette." + modelData.key, newValue)
+                            options: root._semanticRoleOptions()
+                        }
+                    }
+                }
             }
         }
 
@@ -1177,6 +1483,42 @@ ContentPage {
         }
     }
 
+    // ── Widget colors ─────────────────────────────────────────
+    SettingsCardSection {
+        expanded: true
+        icon: "palette"
+        title: Translation.tr("Widget Colors")
+
+        SettingsGroup {
+            StyledText {
+                Layout.fillWidth: true
+                text: Translation.tr("Apply one wallpaper-generated color preset to every built-in desktop widget. You can still tune any widget individually below.")
+                color: Appearance.colors.colSubtext
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                wrapMode: Text.WordWrap
+            }
+
+            SettingsSwitch {
+                Layout.fillWidth: true
+                buttonIcon: "wallpaper"
+                text: Translation.tr("Adapt colors to widget position")
+                autoToggle: false
+                checked: Config.getNestedValue(
+                    "background.widgets.adaptColorsToWallpaperPosition", false)
+                onToggledByUser: checked => Config.setNestedValue(
+                    "background.widgets.adaptColorsToWallpaperPosition", checked)
+                StyledToolTip {
+                    text: Translation.tr("Sample the wallpaper behind each widget to adjust readable ink and semantic foreground choices. Off keeps colors stable when widgets move.")
+                }
+            }
+
+            WidgetPalettePresetPicker {
+                configPath: ""
+                applyGlobally: true
+            }
+        }
+    }
+
     // ── Power Saving ──────────────────────────────────────────
     SettingsCardSection {
         id: powerSavingSection
@@ -1421,12 +1763,18 @@ ContentPage {
                     SettingsSwitch {
                         Layout.fillWidth: false
                         buttonIcon: "wallpaper"
-                        text: Translation.tr("Adapt colors to wallpaper")
+                        text: Translation.tr("Adapt digital clock locally")
                         autoToggle: false
-
+                        enabled: Config.getNestedValue(
+                            "background.widgets.adaptColorsToWallpaperPosition", false)
+                        opacity: enabled ? 1 : 0.45
                         checked: Config.getNestedValue("background.widgets.clock.digital.adaptToWallpaper", true)
                         onToggledByUser: checked => Config.setNestedValue("background.widgets.clock.digital.adaptToWallpaper", checked)
-                        StyledToolTip { text: Translation.tr("Adapt clock colors to the wallpaper behind the text") }
+                        StyledToolTip {
+                            text: enabled
+                                ? Translation.tr("Let the digital clock use the wallpaper sample behind it.")
+                                : Translation.tr("Enable Adapt colors to widget position in Widget Colors first.")
+                        }
                     }
                 }
 
@@ -2202,6 +2550,7 @@ ContentPage {
                 configEntry: Config.getNestedValue("background.widgets.japaneseTypography", ({}))
                 dimDefault: 10
                 hasColorMode: Config.getNestedValue(root._japanesePath + ".paletteMode", "adaptive") === "adaptive"
+                hasSemanticPalette: Config.getNestedValue(root._japanesePath + ".paletteMode", "adaptive") === "adaptive"
                 hasCardControls: true
             }
 
@@ -3078,10 +3427,64 @@ ContentPage {
                         { displayName: Translation.tr("Wide"), icon: "width_wide", value: "wide" },
                     ]
                 }
+
+                ConfigSelectionArray {
+                    currentValue: Config.getNestedValue(
+                        "background.widgets.visualizer.vizType", "bars")
+                    onSelected: newValue => Config.setNestedValue(
+                        "background.widgets.visualizer.vizType", newValue)
+                    options: [
+                        { displayName: Translation.tr("Bars"), icon: "equalizer", value: "bars" },
+                        { displayName: Translation.tr("Wave"), icon: "waves", value: "wave" },
+                    ]
+                }
+
+                ConfigSelectionArray {
+                    currentValue: Config.getNestedValue(
+                        "background.widgets.visualizer.paletteMode", "cava")
+                    onSelected: newValue => Config.setNestedValue(
+                        "background.widgets.visualizer.paletteMode", newValue)
+                    options: [
+                        { displayName: Translation.tr("Cava"), icon: "palette", value: "cava" },
+                        { displayName: Translation.tr("Accent"), icon: "colors", value: "accent" },
+                        { displayName: Translation.tr("Primary"), icon: "format_color_fill", value: "primary" },
+                    ]
+                }
+
+                ConfigSelectionArray {
+                    visible: Config.getNestedValue(
+                        "background.widgets.visualizer.vizType", "bars") === "bars"
+                    currentValue: Config.getNestedValue(
+                        "background.widgets.visualizer.barsOrigin", "bottom")
+                    onSelected: newValue => Config.setNestedValue(
+                        "background.widgets.visualizer.barsOrigin", newValue)
+                    options: [
+                        { displayName: Translation.tr("Bottom"), icon: "vertical_align_bottom", value: "bottom" },
+                        { displayName: Translation.tr("Top"), icon: "vertical_align_top", value: "top" },
+                        { displayName: Translation.tr("Center rise"), icon: "center_focus_strong", value: "center" },
+                        { displayName: Translation.tr("Mirrored"), icon: "unfold_more", value: "mirror" },
+                    ]
+                }
+
+                ConfigSelectionArray {
+                    visible: Config.getNestedValue(
+                        "background.widgets.visualizer.vizType", "bars") === "wave"
+                    currentValue: Config.getNestedValue(
+                        "background.widgets.visualizer.waveMode", "fill")
+                    onSelected: newValue => Config.setNestedValue(
+                        "background.widgets.visualizer.waveMode", newValue)
+                    options: [
+                        { displayName: Translation.tr("Fill"), icon: "waves", value: "fill" },
+                        { displayName: Translation.tr("Line"), icon: "line_weight", value: "line" },
+                        { displayName: Translation.tr("Ribbon"), icon: "unfold_more", value: "ribbon" },
+                    ]
+                }
             }
             }
 
             ContentSubsection {
+                visible: Config.getNestedValue(
+                    "background.widgets.visualizer.vizType", "bars") === "bars"
                 title: Translation.tr("Bars")
 
                 GridLayout {
@@ -3124,6 +3527,138 @@ ContentPage {
                             onValueModified: Config.setNestedValue("background.widgets.visualizer.barMinHeight", value)
                         }
                     }
+
+                    WidgetSettingRow {
+                        label: Translation.tr("Opacity")
+                        StyledSpinBox {
+                            from: 5; to: 100; stepSize: 5
+                            value: Config.getNestedValue(
+                                "background.widgets.visualizer.barOpacity", 100)
+                            onValueModified: Config.setNestedValue(
+                                "background.widgets.visualizer.barOpacity", value)
+                        }
+                    }
+                }
+            }
+
+            ContentSubsection {
+                visible: Config.getNestedValue(
+                    "background.widgets.visualizer.vizType", "bars") === "wave"
+                title: Translation.tr("Wave")
+
+                GridLayout {
+                    columns: 2
+                    columnSpacing: 12
+                    Layout.fillWidth: true
+
+                    WidgetSettingRow {
+                        label: Translation.tr("Opacity")
+                        StyledSpinBox {
+                            from: 5; to: 100; stepSize: 5
+                            value: {
+                                const value = Config.getNestedValue(
+                                    "background.widgets.visualizer.waveOpacity", -1)
+                                return value >= 0 ? value
+                                    : (Config.options?.appearance?.cava?.waveOpacity ?? 30)
+                            }
+                            onValueModified: Config.setNestedValue(
+                                "background.widgets.visualizer.waveOpacity", value)
+                        }
+                    }
+
+                    WidgetSettingRow {
+                        label: Translation.tr("Line width")
+                        StyledSpinBox {
+                            from: 1; to: 8; stepSize: 1
+                            value: Config.getNestedValue(
+                                "background.widgets.visualizer.lineWidth", 2)
+                            onValueModified: Config.setNestedValue(
+                                "background.widgets.visualizer.lineWidth", value)
+                        }
+                    }
+                }
+            }
+
+            ContentSubsection {
+                title: Translation.tr("Response")
+
+                ConfigSelectionArray {
+                    currentValue: Config.getNestedValue(
+                        "background.widgets.visualizer.frequencyProfile", "flat")
+                    onSelected: newValue => Config.setNestedValue(
+                        "background.widgets.visualizer.frequencyProfile", newValue)
+                    options: [
+                        { displayName: Translation.tr("Flat"), icon: "horizontal_rule", value: "flat" },
+                        { displayName: Translation.tr("Bass"), icon: "graphic_eq", value: "bass" },
+                        { displayName: Translation.tr("Warm"), icon: "local_fire_department", value: "warm" },
+                        { displayName: Translation.tr("Vocal"), icon: "record_voice_over", value: "vocal" },
+                        { displayName: Translation.tr("Treble"), icon: "trending_up", value: "treble" },
+                        { displayName: Translation.tr("Smile"), icon: "waves", value: "smile" },
+                    ]
+                }
+
+                GridLayout {
+                    columns: 2
+                    columnSpacing: 12
+                    Layout.fillWidth: true
+
+                    WidgetSettingRow {
+                        label: Translation.tr("Smoothing")
+                        StyledSpinBox {
+                            from: 0; to: 8; stepSize: 1
+                            value: Config.getNestedValue(
+                                "background.widgets.visualizer.smoothing", 2)
+                            onValueModified: Config.setNestedValue(
+                                "background.widgets.visualizer.smoothing", value)
+                        }
+                    }
+
+                    WidgetSettingRow {
+                        label: Translation.tr("Spectrum height (%)")
+                        StyledSpinBox {
+                            from: 10; to: 100; stepSize: 5
+                            value: Config.getNestedValue(
+                                "background.widgets.visualizer.fillRatio", 90)
+                            onValueModified: Config.setNestedValue(
+                                "background.widgets.visualizer.fillRatio", value)
+                        }
+                    }
+
+                    WidgetSettingRow {
+                        label: Translation.tr("Edge inset (px)")
+                        StyledSpinBox {
+                            from: 0; to: 32; stepSize: 1
+                            value: Config.getNestedValue(
+                                "background.widgets.visualizer.edgeInset", 0)
+                            onValueModified: Config.setNestedValue(
+                                "background.widgets.visualizer.edgeInset", value)
+                        }
+                    }
+
+                    WidgetSettingRow {
+                        label: Translation.tr("Curve headroom (%)")
+                        StyledSpinBox {
+                            from: 0; to: 100; stepSize: 5
+                            value: Config.getNestedValue(
+                                "background.widgets.visualizer.edgeSoftness", 28)
+                            onValueModified: Config.setNestedValue(
+                                "background.widgets.visualizer.edgeSoftness", value)
+                        }
+                    }
+
+                    WidgetSettingRow {
+                        label: Translation.tr("Frequency accent strength (%)")
+                        enabled: Config.getNestedValue(
+                            "background.widgets.visualizer.frequencyProfile", "flat") !== "flat"
+                        opacity: enabled ? 1 : 0.45
+                        StyledSpinBox {
+                            from: 0; to: 100; stepSize: 5
+                            value: Config.getNestedValue(
+                                "background.widgets.visualizer.accentStrength", 70)
+                            onValueModified: Config.setNestedValue(
+                                "background.widgets.visualizer.accentStrength", value)
+                        }
+                    }
                 }
             }
 
@@ -3151,6 +3686,8 @@ ContentPage {
             WidgetAppearanceControls {
                 configPath: "background.widgets.visualizer"
                 configEntry: Config.getNestedValue("background.widgets.visualizer", ({}))
+                hasSemanticPalette: Config.getNestedValue(
+                    "background.widgets.visualizer.paletteMode", "cava") !== "cava"
                 hasCardControls: true
             }
 
@@ -3163,9 +3700,20 @@ ContentPage {
                     "placementStrategy": "free",
                     "preset": "default",
                     "vizType": "bars",
+                    "paletteMode": "cava",
+                    "barsOrigin": "bottom",
+                    "waveMode": "fill",
+                    "frequencyProfile": "flat",
+                    "smoothing": 2,
+                    "fillRatio": 90,
+                    "barOpacity": 100,
                     "waveOpacity": -1,
                     "barCount": 48,
                     "barSpacing": 2,
+                    "lineWidth": 2,
+                    "edgeInset": 0,
+                    "edgeSoftness": 28,
+                    "accentStrength": 70,
                     "dim": 0,
                     "widgetScale": 100,
                     "widgetOpacity": 100,

@@ -119,8 +119,7 @@ AbstractBackgroundWidget {
     accentBackdrop: Appearance.colors.colLayer0
     readonly property color mediaSurfaceInk: root.forceLightInk ? root._inkLight
         : root.forceDarkInk ? root._inkDark
-        : ColorUtils.ensureReadable(
-            ColorUtils.boostInkSaturation(Appearance.colors.colOnLayer0, root.widgetAccent),
+        : root.widgetSemanticForeground(root.widgetSurfaceRole,
             Appearance.colors.colLayer0, 4.5)
     readonly property color mediaSurfaceInkMuted: ColorUtils.applyAlpha(root.mediaSurfaceInk, 0.66)
     readonly property QtObject _desktopInkOverride: QtObject {
@@ -240,8 +239,10 @@ AbstractBackgroundWidget {
         onTriggered: root._idleShapeIndex = (root._idleShapeIndex + 1) % root._idleShapes.length
     }
 
+    // This instance only exists when its effective output-local enable state is
+    // true. Rechecking the global base would incorrectly disable Cava for a
+    // widget enabled only on this monitor.
     readonly property bool visualizerActive: root.vizPosition !== "none"
-        && (Config.options?.background?.widgets?.mediaControls?.enable ?? false)
         && root.visible && root.powerActive && MprisController.isPlaying
 
     CavaProcess {

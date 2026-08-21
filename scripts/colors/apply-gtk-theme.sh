@@ -937,9 +937,19 @@ set_gtk_setting() {
     fi
 }
 
+remove_gtk_setting() {
+    local settings_file="$1"
+    local key="$2"
+
+    if grep -q "^${key}=" "$settings_file"; then
+        sed -i "/^${key}=/d" "$settings_file"
+    fi
+}
+
 sync_gtk_settings_ini() {
     local settings_file="$1"
     local defaults_file="$2"
+    local legacy_dark_preference="${3:-false}"
     ensure_valid_gtk_settings_ini "$settings_file" "$defaults_file"
 
     local before current_icon current_cursor current_font current_theme current_scheme prefer_dark
@@ -956,15 +966,23 @@ sync_gtk_settings_ini() {
     set_gtk_setting "$settings_file" "gtk-cursor-theme-name" "$current_cursor"
     set_gtk_setting "$settings_file" "gtk-font-name" "$current_font"
     set_gtk_setting "$settings_file" "gtk-theme-name" "$current_theme"
-    set_gtk_setting "$settings_file" "gtk-application-prefer-dark-theme" "$prefer_dark"
+    if [[ "$legacy_dark_preference" == "true" ]]; then
+        set_gtk_setting "$settings_file" "gtk-application-prefer-dark-theme" "$prefer_dark"
+    else
+        # GTK4/libadwaita takes dark preference from the standardized
+        # org.gnome.desktop.interface color-scheme setting. Keeping the old
+        # GtkSettings key makes libadwaita emit a warning on every process
+        # startup and can disagree with AdwStyleManager.
+        remove_gtk_setting "$settings_file" "gtk-application-prefer-dark-theme"
+    fi
 
     if [[ "$before" != "$(cksum "$settings_file" 2>/dev/null || true)" ]]; then
         gtk_settings_changed=true
     fi
 }
 
-sync_gtk_settings_ini "$HOME/.config/gtk-3.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-3.0/settings.ini"
-sync_gtk_settings_ini "$HOME/.config/gtk-4.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-4.0/settings.ini"
+sync_gtk_settings_ini "$HOME/.config/gtk-3.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-3.0/settings.ini" true
+sync_gtk_settings_ini "$HOME/.config/gtk-4.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-4.0/settings.ini" false
 
 # GTK user CSS is loaded per process. Refresh only consumers that are known to
 # stay alive across theme changes; restarting the GTK portal backend makes new

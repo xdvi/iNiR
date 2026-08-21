@@ -399,7 +399,7 @@ Singleton {
             category: "tools",
             keywords: ["color", "picker", "eyedropper", "hex"],
             execute: () => {
-                Quickshell.execDetached(["/usr/bin/hyprpicker", "-a"])
+                ShellExec.execDetachedArgs(["/usr/bin/hyprpicker", "-a"], "Pick color")
             }
         },
         {
@@ -889,9 +889,9 @@ Singleton {
     function _runSetup(target): void {
         const path = `${Directories.scriptsPath}/setup/${target.slug}.sh`
         const term = root._safeTerminal()
-        Quickshell.execDetached(term === "wezterm"
+        ShellExec.execDetachedArgs(term === "wezterm"
             ? [term, "start", "--always-new-process", "--", "/usr/bin/bash", path]
-            : [term, "-e", "/usr/bin/bash", path])
+            : [term, "-e", "/usr/bin/bash", path], `Setup ${target.name}`)
         Quickshell.execDetached(["/usr/bin/notify-send",
             "-a", "Setup", "-i", target.icon || "download",
             "-h", `string:x-canonical-private-synchronous:setup-${target.slug}`,
@@ -929,9 +929,9 @@ Singleton {
                     icon: "code",
                     category: "custom",
                     keywords: ["custom", "script", "user", actionName],
-                    execute: ((path) => (args) => {
-                        Quickshell.execDetached([path, ...(args ? args.split(" ") : [])])
-                    })(resolvedPath)
+                    execute: ((path, label) => (args) => {
+                        ShellExec.execDetachedArgs([path, ...(args ? args.split(" ") : [])], `Run ${label}`)
+                    })(resolvedPath, actionName)
                 })
             }
         }

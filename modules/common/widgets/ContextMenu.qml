@@ -158,7 +158,12 @@ Loader {
             item: realContent
         }
 
-        property real sourceEdgeMargin: -implicitHeight
+        readonly property real settledMargin: root.ambientShadowWidth + root.visualMargin
+        // Cookie fades in at its final geometry. Sliding an overshooting spring
+        // inside this fixed PopupWindow clipped the face and temporarily split
+        // visual rows from their pointer regions.
+        property real sourceEdgeMargin: Appearance.cookieEverywhere
+            ? settledMargin : -implicitHeight
         readonly property bool isHorizontalPopup: root.popupSide !== 0
         readonly property bool isLeftSide: root.popupSide === Edges.Left
 
@@ -166,10 +171,10 @@ Loader {
             id: openAnim
             target: popupWindow
             property: "sourceEdgeMargin"
-            to: (root.ambientShadowWidth + root.visualMargin)
+            to: popupWindow.settledMargin
             duration: Appearance.animation.elementMoveEnter.duration
             easing.type: Appearance.animation.elementMoveEnter.type
-            easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve
+            easing.bezierCurve: Appearance.motion.popupReveal.enterBezierCurve
         }
         SequentialAnimation {
             id: closeAnim
@@ -244,7 +249,7 @@ Loader {
                         : Appearance.animation.elementMoveEnter.type
                     easing.bezierCurve: popupWindow.closing
                         ? Appearance.animation.elementMoveExit.bezierCurve
-                        : Appearance.animation.elementMoveEnter.bezierCurve
+                        : Appearance.motion.popupReveal.enterBezierCurve
                 }
             }
 
@@ -259,7 +264,7 @@ Loader {
                         : Appearance.animation.elementMoveEnter.type
                     easing.bezierCurve: popupWindow.closing
                         ? Appearance.animation.elementMoveExit.bezierCurve
-                        : Appearance.animation.elementMoveEnter.bezierCurve
+                        : Appearance.motion.popupReveal.enterBezierCurve
                 }
             }
 

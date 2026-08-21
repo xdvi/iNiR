@@ -46,7 +46,9 @@ Item {
     property bool _targetProbePending: false
     property real _pressX: 0
     property real _pressY: 0
-    property var _menuModel: []
+
+    signal contextMenuRequested(var menuModel, real anchorX, real anchorY)
+    signal contextMenuCloseRequested()
 
     width: DesktopItems.itemWidth
     height: DesktopItems.itemHeight
@@ -167,7 +169,7 @@ Item {
             if (entry)
                 AppSearch.launchEntry(entry)
         } else {
-            Quickshell.execDetached(["xdg-open", root.target])
+            ShellExec.execDetachedArgs(["xdg-open", root.target], "Open desktop item")
         }
     }
 
@@ -176,7 +178,7 @@ Item {
             return
         const parent = FileUtils.parentDirectory(root.target)
         if (parent.length > 0)
-            Quickshell.execDetached(["xdg-open", "file://" + parent])
+            ShellExec.execDetachedArgs(["xdg-open", "file://" + parent], "Open desktop item folder")
     }
 
     function _remove(): void {
@@ -248,15 +250,7 @@ Item {
             { text: Translation.tr("Undo remove"), iconName: "undo", monochromeIcon: true,
                 enabled: DesktopItems.canUndo, action: () => DesktopItems.undoRemove() }
         )
-        root._menuModel = model
-        itemMenu.anchorItem = root
-        itemMenu.anchorRect = { x: anchorX, y: anchorY, width: 1, height: 1 }
-        itemMenu.active = true
-    }
-
-    function closeContextMenu(): void {
-        if (itemMenu.active)
-            itemMenu.close()
+        root.contextMenuRequested(model, anchorX, anchorY)
     }
 
     Process {
@@ -301,7 +295,10 @@ Item {
             : mouse.containsMouse
                 ? ColorUtils.applyAlpha(Appearance.colors.colSurfaceContainerHighest, 0.10)
                 : "transparent"
-        border.width: root.selected || root._dragging || mouse.containsMouse ? 1 : 0
+        // Cookie separates selected content by tonal plates. An outline here,
+        // plus the icon plate and the icon artwork, produced three nested rings.
+        border.width: Appearance.cookieEverywhere
+            ? 0 : (root.selected || root._dragging || mouse.containsMouse ? 1 : 0)
         border.color: root.selected || root._dragging
             ? Appearance.colors.colPrimary
             : ColorUtils.applyAlpha(Appearance.colors.colOutline, 0.46)
@@ -330,8 +327,9 @@ Item {
             : mouse.containsMouse
                 ? ColorUtils.applyAlpha(Appearance.colors.colSurfaceContainerHighest, 0.36)
                 : "transparent"
-        border.width: root.targetAvailable || root._targetProbePending
-            ? (root.selected || root._dragging ? 1 : 0) : 2
+        // The outer selection plate already owns selection emphasis. Keep this
+        // border only for a broken target so every dialect avoids double frames.
+        border.width: root.targetAvailable || root._targetProbePending ? 0 : 2
         border.color: root.targetAvailable || root._targetProbePending
             ? ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.48)
             : Appearance.colors.colError
@@ -453,8 +451,8 @@ Item {
         drag.threshold: 8
         enabled: !GlobalStates.screenLocked
         onPressed: event => {
-            if (event.button === Qt.LeftButton && itemMenu.active)
-                root.closeContextMenu()
+            if (event.button === Qt.LeftButton)
+                root.contextMenuCloseRequested()
             root.select()
             root._pressX = root.x
             root._pressY = root.y
@@ -491,16 +489,6 @@ Item {
             root._positionOverride = false
         }
         onDoubleClicked: root.activate()
-    }
-
-    ContextMenu {
-        id: itemMenu
-        model: root._menuModel
-        popupAbove: false
-        popupAdjustment: PopupAdjustment.All
-        closeOnFocusLost: false
-        closeOnHoverLost: false
-        closeOnOutsideClick: true
     }
 
     readonly property bool _dragging: mouse.drag.active

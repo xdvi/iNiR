@@ -157,13 +157,13 @@ Item {
                     property string appId:        root._workOrder[index] ?? ""
                     property var    appEntry:     TaskbarApps.apps.find(
                         app => String(app.appId ?? "").toLowerCase() === appId.toLowerCase()) ?? null
-                    property var    deskEntry:    DesktopEntries.heuristicLookup(appId)
+                    property var    deskEntry:    AppSearch.lookupDesktopEntry(appId)
                     property int    _lastFocused: -1
 
                     Connections {
                         target: DesktopEntries
                         function onApplicationsChanged() {
-                            slotItem.deskEntry = DesktopEntries.heuristicLookup(slotItem.appId)
+                            slotItem.deskEntry = AppSearch.lookupDesktopEntry(slotItem.appId)
                         }
                     }
 
@@ -182,14 +182,14 @@ Item {
                         onClicked: {
                             const entry = slotItem.appEntry
                             if (!entry || entry.toplevels.length === 0) {
-                                slotItem.deskEntry?.execute()
+                                AppSearch.launchEntry(slotItem.deskEntry)
                                 return
                             }
                             const next = (slotItem._lastFocused + 1) % entry.toplevels.length
                             slotItem._lastFocused = next
                             entry.toplevels[next].activate()
                         }
-                        middleClickAction: () => { slotItem.deskEntry?.execute() }
+                        middleClickAction: () => { AppSearch.launchEntry(slotItem.deskEntry) }
                         // Upstream unpinned the app on right click, so a stray
                         // right click silently destroyed the layout. Right click
                         // opens the menu, exactly like iNiR's own dock.
@@ -205,7 +205,7 @@ Item {
                                 {
                                     iconName: "launch",
                                     text: Translation.tr("New window"),
-                                    action: () => slotItem.deskEntry?.execute()
+                                    action: () => AppSearch.launchEntry(slotItem.deskEntry)
                                 },
                                 {
                                     iconName: "keep_off",
@@ -370,7 +370,7 @@ Item {
                             activeSlot.modelData.toplevels[next].activate()
                         }
                         middleClickAction: () => {
-                            DesktopEntries.heuristicLookup(activeSlot.modelData.appId)?.execute()
+                            AppSearch.launchEntry(AppSearch.lookupDesktopEntry(activeSlot.modelData.appId))
                         }
                         altAction: () => { activeMenu.active = true }
 
@@ -384,7 +384,7 @@ Item {
                                 {
                                     iconName: "launch",
                                     text: Translation.tr("New window"),
-                                    action: () => DesktopEntries.heuristicLookup(activeSlot.modelData.appId)?.execute()
+                                    action: () => AppSearch.launchEntry(AppSearch.lookupDesktopEntry(activeSlot.modelData.appId))
                                 },
                                 {
                                     iconName: "keep",

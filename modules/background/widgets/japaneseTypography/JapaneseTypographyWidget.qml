@@ -299,6 +299,9 @@ AbstractBackgroundWidget {
 
     readonly property string paletteMode: Config.getNestedValue("background.widgets.japaneseTypography.paletteMode", "adaptive")
     readonly property bool manualPalette: root.paletteMode === "manual"
+    // Manual editorial colors already have dedicated controls; avoid showing a
+    // second palette control that would not affect the current rendering.
+    semanticPaletteQuickControls: !root.manualPalette
     readonly property real primaryOpacity: root._percent("primaryOpacity", 100)
     readonly property real secondaryOpacity: root._percent("secondaryOpacity", 78)
     readonly property real sealOpacity: root._percent("sealOpacity", 100)
@@ -336,16 +339,13 @@ AbstractBackgroundWidget {
     readonly property real noteWidth: Math.min(body.width * 0.30,
         Math.max(root.noteNaturalWidth, root.notePixelSize * 1.8))
 
-    // Adaptive mode keeps the wallpaper-generated palette identity. The local
-    // region only moves each role's lightness into a readable band; it never
-    // replaces the palette with the region hue or collapses body roles to the
-    // neutral white/black `colText` ink after analysis lands.
-    readonly property color adaptivePrimaryInk: root._adaptiveRole(root.widgetAccent, 4.5, 0.50)
-    readonly property color adaptiveSecondaryInk: root._adaptiveRole(root.widgetAccent2, 4.5, 0.42)
-    readonly property color adaptiveDetailInk: root._adaptiveRole(
-        ColorUtils.mix(root.widgetAccent2, root.widgetAccent3, 0.68), 4.5, 0.36)
-    readonly property color adaptiveRuleInk: root._adaptiveRole(root.widgetAccent3, 3.0, 0.45)
-    readonly property color adaptiveSealInk: root._adaptiveRole(root.widgetAccent, 3.0, 0.52)
+    // Adaptive mode selects only generated semantic tokens. Manual palette mode
+    // remains explicit user RGB intent and is intentionally left untouched.
+    readonly property color adaptivePrimaryInk: root.widgetSemanticForeground(root.widgetPrimaryRole, root.accentBackdrop, 4.5)
+    readonly property color adaptiveSecondaryInk: root.widgetSemanticForeground(root.widgetSecondaryRole, root.accentBackdrop, 4.5)
+    readonly property color adaptiveDetailInk: root.widgetSemanticForeground(root.widgetTertiaryRole, root.accentBackdrop, 4.5)
+    readonly property color adaptiveRuleInk: root.widgetSemanticForeground(root.widgetTertiaryRole, root.accentBackdrop, 3.0)
+    readonly property color adaptiveSealInk: root.widgetSemanticForeground(root.widgetSignalRole, root.accentBackdrop, 3.0)
 
     readonly property color leadInk: root._roleColor(
         Config.getNestedValue("background.widgets.japaneseTypography.primaryColor", "#E7D4B2"),
@@ -381,10 +381,6 @@ AbstractBackgroundWidget {
     function _safeColor(value: var, fallback: color): color {
         const parsed = Qt.color(String(value ?? ""));
         return parsed.valid ? parsed : fallback;
-    }
-
-    function _adaptiveRole(seed: color, minContrast: real, minSaturation: real): color {
-        return root.widgetRoleColor(seed, minContrast, minSaturation);
     }
 
     function _roleColor(manualValue: var, adaptiveValue: color, opacity: real): color {

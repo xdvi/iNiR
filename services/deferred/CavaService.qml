@@ -18,9 +18,8 @@ import qs.services
 // Consumers subscribe()/unsubscribe() to drive lifecycle. While `_subscribers > 0`
 // one process runs; bars are broadcast via the `points` property.
 //
-// Framerate, sensitivity and sample count are global, so a single process
-// satisfies every consumer with identical output. The internal process stays
-// mono; standalone terminal Cava owns the user-facing stereo option.
+// Framerate, sensitivity, sample count and channel layout are global, so a
+// single process satisfies every consumer with identical output.
 Singleton {
     id: root
 
@@ -48,11 +47,7 @@ Singleton {
     readonly property int cfgFramerate: Config.options?.appearance?.cava?.framerate ?? 60
     readonly property int cfgSensitivity: Config.options?.appearance?.cava?.sensitivity ?? 100
     readonly property int cfgBars: Config.options?.appearance?.cava?.bars ?? 0
-    // The internal shell spectrum is a decorative full-width surface, not a
-    // channel meter. Mono keeps every renderer populated even when a player or
-    // browser exposes only one active channel. The standalone cava keeps its
-    // user-configurable stereo setting in scripts/colors/modules/90-cava.sh.
-    readonly property bool cfgStereo: false
+    readonly property bool cfgStereo: Config.options?.appearance?.cava?.stereo ?? true
     readonly property int requestedBars: {
         let requested = 0
         for (let i = 0; i < root._sampleRequests.length; ++i)
@@ -142,33 +137,41 @@ Singleton {
     // Live config changes — restart cava with new parameters
     onCfgFramerateChanged: if (active) configRestart.restart()
     onCfgSensitivityChanged: if (active) configRestart.restart()
+    onCfgStereoChanged: if (active) configRestart.restart()
     onEffectiveBarsChanged: if (active && !root._suppressConfigRestart) configRestart.restart()
     onPlayerDesktopEntryChanged: if (active) sourceRefresh.restart()
 
-    onPointsChanged: {
-        if (root.points.length === 0) {
-            root.framePeak = 0
-            root.frameAverage = 0
-            root.normalizationCeiling = root.normalizationFloor
-            if (!root._pendingRestart && root.audioSignalActive)
-                signalRelease.restart()
+    function _publishFrame(parsed): void {
+        // Wave renderers stretch short input across their full width. The raw
+        // stream contract is one value per configured bar, so reject anything
+        // that is not a complete frame for the current configuration.
+        if (parsed.length !== root.effectiveBars)
             return
-        }
 
         let peak = 0
         let sum = 0
-        for (let i = 0; i < root.points.length; ++i) {
-            const value = Number(root.points[i]) || 0
+        for (let i = 0; i < parsed.length; ++i) {
+            const value = Number(parsed[i]) || 0
             peak = Math.max(peak, value)
             sum += value
         }
-        root.framePeak = peak
-        root.frameAverage = sum / root.points.length
 
         const target = Math.max(root.normalizationFloor, peak * 1.15)
-        root.normalizationCeiling = target >= root.normalizationCeiling
+        const nextCeiling = target >= root.normalizationCeiling
             ? target
             : Math.max(root.normalizationFloor, root.normalizationCeiling * 0.995)
+        const ceilingRises = nextCeiling > root.normalizationCeiling
+
+        // Canvas.Threaded may paint as soon as either binding changes. Raise
+        // the ceiling before stronger points, and lower it only after weaker
+        // points, so no paint can pair a loud frame with a stale low ceiling.
+        if (ceilingRises)
+            root.normalizationCeiling = nextCeiling
+        root.framePeak = peak
+        root.frameAverage = sum / parsed.length
+        root.points = parsed
+        if (!ceilingRises)
+            root.normalizationCeiling = nextCeiling
 
         if (peak >= 2 || root.frameAverage >= 0.35) {
             signalRelease.stop()
@@ -298,7 +301,7 @@ Singleton {
                     if (!isNaN(value))
                         parsed.push(value)
                 }
-                root.points = parsed
+                root._publishFrame(parsed)
             }
         }
     }

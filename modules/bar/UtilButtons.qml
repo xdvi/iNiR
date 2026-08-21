@@ -1,6 +1,7 @@
 import qs
 import qs.services
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
@@ -122,7 +123,7 @@ Item {
             visible: active
             sourceComponent: CircleUtilButton {
                 Layout.alignment: Qt.AlignVCenter
-                onClicked: Quickshell.execDetached(["/usr/bin/hyprpicker", "-a"])
+                onClicked: ShellExec.execDetachedArgs(["/usr/bin/hyprpicker", "-a"], "Pick color")
                 MaterialSymbol {
                     horizontalAlignment: Qt.AlignHCenter
                     fill: 1

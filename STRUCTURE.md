@@ -19,6 +19,8 @@ inir/
 │   │   ├── Config.qml            # Central config (JsonAdapter)
 │   │   └── widgets/              # Reusable widgets + qmldir
 │   ├── bar/                      # Top bar (ii family)
+│   ├── barM3/                    # Material 3 bar — independent layout model, bar.appearanceStyle "m3"
+│   ├── background/               # Wallpaper backdrop + desktop widgets + desktop items
 │   ├── sidebarLeft/              # AI chat, YT Music, widgets
 │   ├── sidebarRight/             # Toggles, calendar, tools
 │   ├── settings/                 # All config UI pages
@@ -46,6 +48,9 @@ inir/
 │   ├── BluetoothStatus.qml       # BlueZ device management
 │   ├── Translation.qml           # i18n string lookup
 │   ├── DevNavigation.qml         # Session-only semantic UI navigation + dev IPC
+│   ├── DesktopItems.qml          # Desktop item persistence + undo (desktop-items.json)
+│   ├── DesktopWidgetLayout.qml   # Per-output widget layout (background.widgets.outputOverrides)
+│   ├── LyricsService.qml         # Synchronized lyrics for media controls
 │   └── [more services]
 ├── scripts/                      # Shell/fish/python helpers
 │   ├── inir                      # CLI launcher (bash, IPC + lifecycle commands)
@@ -92,6 +97,16 @@ inir/
 - Purpose: ii-family-specific overlay and sidebarRight components
 - Contains: Overlay system (crosshair, discord, floatingImage, fpsLimiter, notes, recorder, volumeMixer), sidebarRight integration
 - Key files: `modules/ii/overlay/Overlay.qml`, `modules/ii/sidebarRight/`
+
+**modules/background/:**
+- Purpose: Per-output desktop surface rendering the wallpaper and hosting desktop widgets and desktop items
+- Contains: Background render surface (Background.qml), desktop items (desktopItems/), widget instances (widgets/)
+- Key files: `modules/background/Background.qml`, `modules/background/desktopItems/DesktopItemDelegate.qml`, `modules/background/widgets/WidgetManagerPanel.qml`
+
+**modules/barM3/:**
+- Purpose: Separate Material 3 bar implementation selected by `bar.appearanceStyle === "m3"`
+- Contains: M3Bar.qml and its own widget components; the layout contract lives under `bar.m3` in Config
+- Key files: `modules/barM3/M3Bar.qml`, `modules/barM3/M3Palette.qml`
 
 **services/:**
 - Purpose: Runtime singletons providing backend functionality (audio, network, compositor IPC, theming, etc.)
@@ -186,3 +201,5 @@ inir/
 **New translation:** Wrap a literal in `Translation.tr(...)`, then synchronize and audit every locale catalog
 **New waffle subdir:** `modules/waffle/[subdir]/` following existing waffle subdir patterns
 **New ii-family component:** `modules/ii/[subdir]/` for overlay or sidebarRight additions
+**New desktop widget:** `modules/background/widgets/[name]/` — declare a `background.widgets.<name>` key in `modules/common/Config.qml` and expose it in both Settings families
+**New M3 bar widget:** `modules/barM3/<Name>.qml` — reference it from the `bar.m3` layout lists in `modules/common/Config.qml`

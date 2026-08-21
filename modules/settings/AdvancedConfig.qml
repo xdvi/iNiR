@@ -305,12 +305,12 @@ ContentPage {
                 }
                 SettingsSwitch {
                     buttonIcon: "headphones"
-                    text: Translation.tr("Standalone stereo")
+                    text: Translation.tr("Stereo")
                     checked: Config.options?.appearance?.cava?.stereo ?? true
                     onCheckedChanged: root.setCavaValue(
                         "appearance.cava.stereo", checked, true)
                     StyledToolTip {
-                        text: Translation.tr("Only affects terminal Cava. The internal bar spectrum stays mono so it always fills the whole surface.")
+                        text: Translation.tr("Split visualizer into left/right channels")
                     }
                 }
                 ConfigSpinBox {

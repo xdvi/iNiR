@@ -244,7 +244,7 @@ AbstractBackgroundWidget {
                 case "hover": return ColorUtils.applyAlpha(root.widgetAccent, 0.18)
                 case "converting": return ColorUtils.applyAlpha(root.widgetAccent2, 0.18)
                 case "done": return ColorUtils.applyAlpha(root.widgetAccent3, 0.18)
-                case "error": return ColorUtils.applyAlpha(Appearance.m3colors.m3error, 0.14)
+                case "error": return ColorUtils.applyAlpha(root.widgetSignal, 0.14)
                 default: return ColorUtils.applyAlpha(root.widgetInk, 0.06)
                 }
             }
@@ -254,7 +254,7 @@ AbstractBackgroundWidget {
                 case "hover": return root.widgetAccent
                 case "converting": return root.widgetAccent2
                 case "done": return root.widgetAccent3
-                case "error": return Appearance.m3colors.m3error
+                case "error": return root.widgetSignal
                 default: return ColorUtils.applyAlpha(root.widgetInk, 0.20)
                 }
             }
@@ -291,7 +291,7 @@ AbstractBackgroundWidget {
                 fill: root.conversionState === "done" ? 1 : 0
                 iconSize: Math.round(34 * root.scaleFactor)
                 color: root.conversionState === "error"
-                    ? Appearance.m3colors.m3error : root.widgetAccentVisible
+                    ? root.widgetSemanticForeground(root.widgetSignalRole) : root.widgetAccentVisible
             }
 
             StyledText {
@@ -301,7 +301,7 @@ AbstractBackgroundWidget {
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 color: root.conversionState === "error"
-                    ? Appearance.m3colors.m3error : root.widgetInk
+                    ? root.widgetSemanticForeground(root.widgetSignalRole, root.accentBackdrop, 4.5) : root.widgetInk
                 opacity: root.conversionState === "idle" ? 0.68 : 1
                 font.pixelSize: Math.round(Appearance.font.pixelSize.small * root.scaleFactor)
                 text: {

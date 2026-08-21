@@ -103,7 +103,7 @@ AbstractBackgroundWidget {
             implicitWidth: localChip.implicitWidth + Math.round(18 * root.scaleFactor)
             implicitHeight: localChip.implicitHeight + Math.round(8 * root.scaleFactor)
             radius: height / 2
-            color: Appearance.colors.colPrimaryContainer
+            color: root.widgetSemanticContainer(root.widgetPrimaryRole)
 
             RowLayout {
                 id: localChip
@@ -114,13 +114,13 @@ AbstractBackgroundWidget {
                     text: "place"
                     fill: 1
                     iconSize: Math.round(Appearance.font.pixelSize.small * root.scaleFactor)
-                    color: Appearance.colors.colOnPrimaryContainer
+                    color: root.widgetSemanticOnContainer(root.widgetPrimaryRole)
                 }
 
                 StyledText {
                     text: root.localCity || Translation.tr("Local")
                     elide: Text.ElideRight
-                    color: Appearance.colors.colOnPrimaryContainer
+                    color: root.widgetSemanticOnContainer(root.widgetPrimaryRole)
                     font.pixelSize: Math.round(Appearance.font.pixelSize.smaller * root.scaleFactor)
                     font.weight: Font.Medium
                 }
@@ -162,15 +162,11 @@ AbstractBackgroundWidget {
                     required property var modelData
                     required property int index
                     readonly property bool alternate: (index % 2) === (Math.floor(index / 2) % 2)
-                    readonly property color cellColor: cityCell.alternate
-                        ? Appearance.colors.colSecondaryContainer
-                        : Appearance.colors.colTertiaryContainer
-                    readonly property color cellInk: cityCell.alternate
-                        ? Appearance.colors.colOnSecondaryContainer
-                        : Appearance.colors.colOnTertiaryContainer
-                    readonly property color cellAccent: cityCell.alternate
-                        ? Appearance.colors.colSecondary
-                        : Appearance.colors.colTertiary
+                    readonly property string cellRole: cityCell.alternate
+                        ? root.widgetSecondaryRole : root.widgetTertiaryRole
+                    readonly property color cellColor: root.widgetSemanticContainer(cityCell.cellRole)
+                    readonly property color cellInk: root.widgetSemanticOnContainer(cityCell.cellRole)
+                    readonly property color cellAccent: root.widgetSemanticColor(cityCell.cellRole)
 
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -242,9 +238,7 @@ AbstractBackgroundWidget {
                                 text: cityCell.modelData.isDay ? "light_mode" : "dark_mode"
                                 fill: 1
                                 iconSize: Math.round(13 * root.scaleFactor)
-                                color: cityCell.alternate
-                                    ? Appearance.colors.colOnSecondary
-                                    : Appearance.colors.colOnTertiary
+                                color: root.widgetSemanticOnColor(cityCell.cellRole)
                             }
                         }
                     }

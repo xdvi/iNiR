@@ -2137,7 +2137,7 @@ Item {
                 label: Translation.tr("Color Picker")
                 onClicked: {
                     GlobalStates.sidebarRightOpen = false
-                    Qt.callLater(() => Quickshell.execDetached(["/usr/bin/hyprpicker", "-a"]))
+                    Qt.callLater(() => ShellExec.execDetachedArgs(["/usr/bin/hyprpicker", "-a"], "Pick color"))
                 }
             }
 
@@ -2145,7 +2145,7 @@ Item {
                 Layout.fillWidth: true
                 icon: "folder_open"
                 label: Translation.tr("Files")
-                onClicked: Quickshell.execDetached(["xdg-open", Quickshell.env("HOME")])
+                onClicked: ShellExec.execDetachedArgs(["xdg-open", Quickshell.env("HOME")], "Open home folder")
             }
         }
     }

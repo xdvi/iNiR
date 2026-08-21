@@ -14,6 +14,7 @@ MouseArea {
     id: root
     required property SystemTrayItem item
     property bool targetMenuOpen: false
+    readonly property bool tintIcon: Config.options?.bar?.m3?.tray?.monochromeIcons ?? true
 
     signal menuOpened(qsWindow: var)
     signal menuClosed()
@@ -74,28 +75,27 @@ MouseArea {
 
     IconImage {
         id: trayIcon
-        visible: !Config.options.tray.monochromeIcons
-        source: root.item.icon
+        source: root.item?.icon ?? ""
         anchors.centerIn: parent
         width: parent.width
         height: parent.height
     }
 
     Loader {
-        active: Config.options.tray.monochromeIcons
+        active: root.tintIcon
         anchors.fill: trayIcon
         sourceComponent: Item {
             Desaturate {
                 id: desaturatedIcon
-                visible: false // There's already color overlay
+                visible: false
                 anchors.fill: parent
                 source: trayIcon
-                desaturation: 0.8 // 1.0 means fully grayscale
+                desaturation: 0.8
             }
             ColorOverlay {
                 anchors.fill: desaturatedIcon
                 source: desaturatedIcon
-                color: M3Palette.pillInk("sysTray")
+                color: ColorUtils.transparentize(M3Palette.pillInk("sysTray"), 0.9)
             }
         }
     }

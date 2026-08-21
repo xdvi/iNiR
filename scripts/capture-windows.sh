@@ -61,6 +61,36 @@ hash_matches_preview() {
   return 1
 }
 
+restore_clipboard_file() {
+  local mime="$1"
+  local file="$2"
+
+  # wl-copy normally forks and remains alive as the Wayland selection owner.
+  # When this script runs from Quickshell that daemon would otherwise remain
+  # inside inir.service after a shell restart.  Let the systemd user manager
+  # own a foreground wl-copy in its own transient service instead: the
+  # clipboard survives iNiR restarts, while the shell cgroup remains clean.
+  # Use a per-capture unit name so an older selection owner can finish its
+  # Wayland cancellation path without racing a unit-name reuse.
+  local unit="inir-clipboard-owner-${BASHPID:-$$}"
+  if command -v /usr/bin/systemd-run >/dev/null 2>&1; then
+    if /usr/bin/systemd-run \
+      --user \
+      --quiet \
+      --unit="$unit" \
+      --collect \
+      --service-type=exec \
+      --property="StandardInput=file:$file" \
+      "$wl_copy_bin" --foreground --type "$mime"; then
+      return 0
+    fi
+  fi
+
+  # Keep clipboard restoration functional on non-systemd user sessions. The
+  # fallback preserves the previous behavior, including wl-copy's daemon mode.
+  "$wl_copy_bin" --type "$mime" <"$file"
+}
+
 # Niri always puts screenshot-window output in the clipboard even when --path
 # is supplied. Save one pasteable representation synchronously before starting
 # any capture. Arbitrary MIME fallback covers browser/custom selections too.
@@ -192,7 +222,7 @@ if "$wl_paste_bin" -l 2>/dev/null | /usr/bin/grep -Fqx "image/png"; then
 fi
 if [[ -n "$current_clip_hash" ]] && hash_matches_preview "$current_clip_hash"; then
   if [[ -n "$saved_clip_mime" && -s "$saved_clip_file" ]]; then
-    "$wl_copy_bin" --type "$saved_clip_mime" <"$saved_clip_file" 2>/dev/null || true
+    restore_clipboard_file "$saved_clip_mime" "$saved_clip_file" 2>/dev/null || true
   else
     "$wl_copy_bin" --clear 2>/dev/null || true
   fi
