@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import qs.modules.common
+import qs.modules.common.functions
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
@@ -101,12 +102,9 @@ Singleton {
 
     function _doEnable() {
         if (CompositorService.isNiri) {
-            // wlsunset: -T high temp (day), -t low temp (night)
-            // Force "always night" mode: sunset at 00:00, sunrise at 23:59
-            // Must use execDetached so wlsunset keeps running after Process ends
-            Quickshell.execDetached(["/usr/bin/wlsunset", "-T", "6500", "-t", root.colorTemperature.toString(), "-s", "00:00", "-S", "23:59"]);
+            ShellExec.launchDaemon({ program: "/usr/bin/wlsunset", args: ["-T", "6500", "-t", root.colorTemperature.toString(), "-s", "00:00", "-S", "23:59"], scope: "wlsunset", description: "Night light (wlsunset)" });
         } else {
-            hyprsunsetStartProc.running = true;
+            ShellExec.launchDaemon({ program: "/usr/bin/hyprsunset", args: ["--temperature", root.colorTemperature.toString()], scope: "hyprsunset", description: "Night light (hyprsunset)" });
         }
     }
 
@@ -138,11 +136,6 @@ Singleton {
     }
 
     // === Hyprland processes ===
-    Process {
-        id: hyprsunsetStartProc
-        command: ["/usr/bin/bash", "-c", `pidof hyprsunset || /usr/bin/hyprsunset --temperature ${root.colorTemperature}`]
-    }
-
     Process {
         id: hyprsunsetKillProc
         command: ["/usr/bin/pkill", "-x", "hyprsunset"]

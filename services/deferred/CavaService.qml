@@ -27,9 +27,6 @@ Singleton {
     property var _sampleRequests: []
     property int _nextSampleRequestId: 1
     property bool _suppressConfigRestart: false
-    property int _generationBars: 0
-    property int _processBars: 0
-    property bool _pendingConfigGeneration: false
     readonly property int _subscribers: _legacySubscribers + _sampleRequests.length
     readonly property bool active: _subscribers > 0
 
@@ -77,8 +74,8 @@ Singleton {
         if (!wasActive && root.active) {
             stopDebounce.stop()
             frameClear.stop()
-            if (!cavaProc.running)
-                root._generateConfig()
+            if (!cavaProc.running && !configGen.running)
+                configGen.running = true
         } else if (wasActive && !root.active) {
             stopDebounce.restart()
         }
@@ -147,8 +144,8 @@ Singleton {
     function _publishFrame(parsed): void {
         // Wave renderers stretch short input across their full width. The raw
         // stream contract is one value per configured bar, so reject anything
-        // that is not a complete frame for the running process configuration.
-        if (parsed.length !== root._processBars)
+        // that is not a complete frame for the current configuration.
+        if (parsed.length !== root.effectiveBars)
             return
 
         let peak = 0
@@ -185,17 +182,6 @@ Singleton {
     }
 
     property bool _pendingRestart: false
-
-    function _generateConfig(): void {
-        if (!root.active)
-            return
-        if (configGen.running) {
-            root._pendingConfigGeneration = true
-            return
-        }
-        root._generationBars = root.effectiveBars
-        configGen.running = true
-    }
 
     Connections {
         target: MprisController
@@ -245,13 +231,11 @@ Singleton {
         id: configRestart
         interval: 300
         onTriggered: {
-            if (configGen.running) {
-                root._pendingConfigGeneration = true
-            } else if (cavaProc.running) {
+            if (cavaProc.running) {
                 root._pendingRestart = true
                 cavaProc.running = false
             } else if (root.active) {
-                root._generateConfig()
+                configGen.running = true
             }
         }
     }
@@ -265,7 +249,6 @@ Singleton {
         onTriggered: {
             if (!root.active) {
                 root._pendingRestart = false
-                root._pendingConfigGeneration = false
                 configGen.running = false
                 cavaProc.running = false
                 signalRelease.restart()
@@ -279,16 +262,12 @@ Singleton {
         running: false
         command: ["/usr/bin/bash", root.scriptPath, root.configPath,
             String(root.cfgFramerate), String(root.cfgSensitivity),
-            String(root._generationBars), String(root.cfgStereo),
+            String(root.effectiveBars), String(root.cfgStereo),
             root.playerDesktopEntry]
         onExited: (code, status) => {
-            if (root._pendingConfigGeneration && root.active) {
-                root._pendingConfigGeneration = false
-                root._generateConfig()
-            } else if (code === 0 && root.active) {
-                root._processBars = root._generationBars
+            if (code === 0 && root.active)
                 cavaProc.running = true
-            } else if (root.active) {
+            else if (root.active) {
                 signalRelease.restart()
                 frameClear.restart()
             }
@@ -303,7 +282,7 @@ Singleton {
             if (!running) {
                 if (root._pendingRestart && root.active) {
                     root._pendingRestart = false
-                    root._generateConfig()
+                    configGen.running = true
                 } else if (root.active) {
                     signalRelease.restart()
                     sourceRefresh.restart()
