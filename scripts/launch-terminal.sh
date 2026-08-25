@@ -16,14 +16,23 @@ fi
 
 TERMINAL="${TERMINAL:-kitty}"
 
+# Exec inside transient user scope
+exec_terminal_scoped() {
+    if command -v systemd-run >/dev/null 2>&1 && [[ -S "$XDG_RUNTIME_DIR/systemd/private" ]]; then
+        exec systemd-run --user --quiet --collect --same-dir --scope \
+            --unit="inir-terminal-$$" --description="inir terminal" -- "$@"
+    fi
+    exec "$@"
+}
+
 if command -v "$TERMINAL" &>/dev/null; then
-    exec "$TERMINAL" "$@"
+    exec_terminal_scoped "$TERMINAL" "$@"
 fi
 
 # Fallback chain: project default first, then popular alternatives
 for fallback in kitty foot ghostty alacritty wezterm konsole xterm; do
     if command -v "$fallback" &>/dev/null; then
-        exec "$fallback" "$@"
+        exec_terminal_scoped "$fallback" "$@"
     fi
 done
 

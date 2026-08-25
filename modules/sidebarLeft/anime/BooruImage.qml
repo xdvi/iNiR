@@ -173,7 +173,7 @@ Button {
                     contextMenu.close()
                 }
 
-                contextMenu.requestOpen()
+                contextMenu.active = true
                 Qt.callLater(() => {
                     contextMenu.updateAnchor()
                 })
@@ -213,7 +213,7 @@ Button {
                     contextMenu.close()
                 }
 
-                contextMenu.requestOpen()
+                contextMenu.active = true
                 Qt.callLater(() => {
                     contextMenu.updateAnchor()
                 })

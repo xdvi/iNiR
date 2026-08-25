@@ -40,7 +40,6 @@ Item {
     // Bare: no surface of its own — for groups that live INSIDE another island
     // (e.g. the weather chip in an edge island) so cards never nest.
     property bool bare: false
-    property bool clipContent: false
     readonly property bool zzzPlate: false
     implicitWidth: vertical ? Appearance.sizes.baseVerticalBarWidth : (gridLayout.implicitWidth + padding * 2)
     implicitHeight: vertical ? (gridLayout.implicitHeight + padding * 2) : Appearance.sizes.baseBarHeight
@@ -94,7 +93,7 @@ Item {
     // islands bar is an explicit opt-in to that dialect, so the zzz "groups
     // stay transparent" doctrine (which left the centre groups naked over the
     // wallpaper) does not apply here.
-    BarIslandSurface {
+    IslandPanel {
         id: islandSurface
         readonly property int inset: Config.options?.bar?.islands?.inset ?? 4
         anchors {
@@ -108,7 +107,6 @@ Item {
         glassEnabled: true
         nativeBlurActive: root.nativeBlurActive
         screen: root.screen
-        compactShadow: !root.vertical
 
         CavaSpectrum {
             anchors.fill: parent
@@ -139,22 +137,17 @@ Item {
         }
     }
 
-    Item {
-        anchors.fill: parent
-        clip: root.clipContent
-
-        GridLayout {
-            id: gridLayout
-            columns: root.vertical ? 1 : -1
-            anchors {
-                verticalCenter: root.vertical ? undefined : parent.verticalCenter
-                horizontalCenter: parent.horizontalCenter
-                top: root.vertical ? parent.top : undefined
-                bottom: root.vertical ? parent.bottom : undefined
-                margins: root.padding
-            }
-            columnSpacing: 4
-            rowSpacing: 12
+    GridLayout {
+        id: gridLayout
+        columns: root.vertical ? 1 : -1
+        anchors {
+            verticalCenter: root.vertical ? undefined : parent.verticalCenter
+            horizontalCenter: parent.horizontalCenter
+            top: root.vertical ? parent.top : undefined
+            bottom: root.vertical ? parent.bottom : undefined
+            margins: root.padding
         }
+        columnSpacing: 4
+        rowSpacing: 12
     }
 }

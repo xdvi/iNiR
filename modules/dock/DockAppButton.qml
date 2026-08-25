@@ -436,7 +436,7 @@ DockButton {
         // every window/title event, which resets the menu's Repeater and kills
         // the hover state of the item under the cursor.
         contextMenu.model = root.buildContextMenuModel()
-        contextMenu.requestOpen()
+        contextMenu.active = true
     }
 
     function desktopActionIcon(action): var {

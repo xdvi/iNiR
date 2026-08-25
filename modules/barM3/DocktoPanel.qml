@@ -193,7 +193,7 @@ Item {
                         // Upstream unpinned the app on right click, so a stray
                         // right click silently destroyed the layout. Right click
                         // opens the menu, exactly like iNiR's own dock.
-                        altAction: () => { pinnedMenu.requestOpen() }
+                        altAction: () => { pinnedMenu.active = true }
 
                         ContextMenu {
                             id: pinnedMenu
@@ -372,7 +372,7 @@ Item {
                         middleClickAction: () => {
                             AppSearch.launchEntry(AppSearch.lookupDesktopEntry(activeSlot.modelData.appId))
                         }
-                        altAction: () => { activeMenu.requestOpen() }
+                        altAction: () => { activeMenu.active = true }
 
                         ContextMenu {
                             id: activeMenu

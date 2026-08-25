@@ -234,7 +234,7 @@ StyledOverlayWidget {
                     Behavior on scale { enabled: Appearance.animationsEnabled; NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
                     onClicked: {
                         GlobalStates.overlayOpen = false;
-                        Quickshell.execDetached([Directories.recordScriptPath, "--fullscreen", "--sound"]);
+                        ShellExec.launch({ program: ShellExec.bashPath, args: [Directories.recordScriptPath, "--fullscreen", "--sound"], scope: "record", description: "Record screen" });
                         RecorderStatus.scheduleQuickCheck();
                     }
                 }
@@ -250,7 +250,7 @@ StyledOverlayWidget {
                     Behavior on opacity { enabled: Appearance.animationsEnabled; NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
                     Behavior on scale { enabled: Appearance.animationsEnabled; NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
                     onClicked: {
-                        Quickshell.execDetached([Directories.recordScriptPath, "--stop"]);
+                        ShellExec.launch({ program: ShellExec.bashPath, args: [Directories.recordScriptPath, "--stop"], scope: "record", description: "Stop recording" });
                         RecorderStatus.scheduleQuickCheck();
                     }
                 }

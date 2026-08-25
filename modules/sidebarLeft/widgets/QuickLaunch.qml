@@ -105,7 +105,7 @@ Item {
 
                     altAction: () => {
                         root.editingIndex = launchBtn.index
-                        contextMenu.requestOpen()
+                        contextMenu.active = true
                     }
 
                     contentItem: Item {

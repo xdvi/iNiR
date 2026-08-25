@@ -844,7 +844,7 @@ AbstractWidget {
         acceptedButtons: Qt.RightButton
         onTapped: {
             GlobalStates.selectDesktopWidget(root.editInstanceKey)
-            widgetEditContextMenu.requestOpen()
+            widgetEditContextMenu.active = true
         }
     }
 

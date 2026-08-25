@@ -364,16 +364,7 @@ Singleton {
                 return true
             }
 
-            const executable = command[0].split("/").pop().toLowerCase()
-            const isVentoyGui = executable === "ventoygui" || executable.startsWith("ventoygui.")
-            const hasVentoyFrontend = command.slice(1).some(arg => /^--(gtk[234]|qt[456])$/.test(arg.toLowerCase()))
-            const graphicalCommand = isVentoyGui && !hasVentoyFrontend
-                ? [command[0], "--qt5", ...command.slice(1)]
-                : command
-            const launchCommand = (executable === "gparted" || isVentoyGui)
-                ? [Quickshell.shellPath("scripts/launch-privileged-gui.sh"), ...graphicalCommand]
-                : graphicalCommand
-            ShellExec.execDetachedArgs(launchCommand,
+            ShellExec.execDetachedArgs(command,
                 displayName.length > 0 ? `Launch ${displayName}` : "",
                 workingDirectory)
             return true
@@ -387,7 +378,7 @@ Singleton {
                 displayName.length > 0 ? `Launch ${displayName}` : "")
         }
 
-        // Non-desktop search providers can still expose their own callback.
+        // launch-policy: allow provider-managed actions
         if (typeof entry.execute === "function") {
             entry.execute()
             return true
@@ -396,20 +387,26 @@ Singleton {
         return false
     }
 
+    // Launch a desktop entry action
     function launchDesktopAction(entry, action): bool {
-        if (!entry || !action) return false
-
-        const command = Array.from(action.command ?? []).map(arg => String(arg ?? "")).filter(arg => arg.length > 0)
-        if (command.length > 0) {
-            const actionName = String(action.name ?? entry.name ?? "").trim()
-            const workingDirectory = String(entry.workingDirectory ?? "").trim()
-            ShellExec.execDetachedArgs(command,
-                actionName.length > 0 ? `Launch ${actionName}` : "",
-                workingDirectory)
-            return true
+        if (action === undefined) {
+            action = entry
+            entry = null
         }
+        if (!action) return false
 
-        return false
+        const raw = (Array.isArray(action.command) && action.command.length > 0)
+            ? action.command
+            : (String(action.execString ?? "").trim().length > 0 ? [action.execString] : [])
+        const command = raw.map(arg => String(arg ?? "")).filter(arg => arg.length > 0)
+        if (command.length === 0) return false
+
+        const actionName = String(action.name ?? entry?.name ?? "app action").trim()
+        const workingDirectory = String(entry?.workingDirectory ?? "").trim()
+        ShellExec.execDetachedArgs(command,
+            actionName.length > 0 ? `Launch ${actionName}` : "",
+            workingDirectory)
+        return true
     }
 
     function iconExists(iconName) {

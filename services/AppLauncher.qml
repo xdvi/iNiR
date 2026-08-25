@@ -50,6 +50,20 @@ Singleton {
             ]
         },
         {
+            id: "files",
+            label: Translation.tr("File manager"),
+            description: Translation.tr("Used by file manager shortcuts and app launch tiles."),
+            defaultCommand: "nautilus",
+            placeholder: "nautilus",
+            presets: [
+                { id: "nautilus", label: "GNOME Files", command: "nautilus" },
+                { id: "dolphin", label: "Dolphin", command: "dolphin" },
+                { id: "thunar", label: "Thunar", command: "thunar" },
+                { id: "nemo", label: "Nemo", command: "nemo" },
+                { id: "pcmanfm", label: "PCManFM", command: "pcmanfm" }
+            ]
+        },
+        {
             id: "manageUser",
             label: Translation.tr("Manage my account"),
             description: Translation.tr("Used by the profile menu and start menu account shortcuts."),

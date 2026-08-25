@@ -1545,7 +1545,7 @@ Scope {
                     if (desktopItemContextMenu.active) desktopItemContextMenu.close()
                     desktopMenuAnchor.x = mouse.x
                     desktopMenuAnchor.y = mouse.y
-                    desktopContextMenu.requestOpen()
+                    desktopContextMenu.active = true
                 }
             }
 
@@ -1713,7 +1713,7 @@ Scope {
                             desktopMenuAnchor.x = position.x
                             desktopMenuAnchor.y = position.y
                             desktopItemContextMenu.model = menuModel
-                            desktopItemContextMenu.requestOpen()
+                            desktopItemContextMenu.active = true
                         }
                         onContextMenuCloseRequested: {
                             if (desktopItemContextMenu.active)

@@ -66,7 +66,7 @@ Item {
                             args.push("--stop")
                         else
                             args.push("--fullscreen", "--sound")
-                        Quickshell.execDetached(args)
+                        ShellExec.launch({ program: ShellExec.bashPath, args, scope: "record", description: "Toggle screen recording" })
                         RecorderStatus.scheduleQuickCheck()
                     }
 

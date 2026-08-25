@@ -113,7 +113,7 @@ Item {
             if (model.length === 0) return
             root.target?.forceActiveFocus()
             contextMenu.model = model
-            contextMenu.requestOpen()
+            contextMenu.active = true
             mouse.accepted = true
         }
     }

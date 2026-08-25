@@ -102,7 +102,7 @@ EOF
 
     cat <<'EOF'
 Runtime:
-  start, stop, run, restart, kill, terminal, browser, close-window, colorpicker
+  start, stop, run, restart, kill, terminal, browser, files, close-window, colorpicker
 
 Maintenance (delegates to setup):
   install, reinstall, update, doctor, status, migrate, rollback, my-changes, uninstall
@@ -3490,21 +3490,57 @@ launch_configured_browser() {
     browser="${browser:-xdg-open}"
 
     if command -v "$browser" >/dev/null 2>&1; then
-        if [[ $# -gt 0 ]]; then
-            exec "$browser" "$@"
-        fi
-        exec "$browser"
+        exec_scoped "$browser" "$@"
     fi
 
     if command -v xdg-open >/dev/null 2>&1; then
-        if [[ $# -gt 0 ]]; then
-            exec xdg-open "$@"
-        fi
-        exec xdg-open "https://"
+        exec_scoped xdg-open "${@:-https://}"
     fi
 
     echo "No browser launcher found" >&2
     exit 1
+}
+
+launch_configured_files() {
+    resolve_config_dir
+    local config_file="$config_dir/config.json"
+    local fm=""
+
+    if [[ -f "$config_file" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            fm="$(jq -r '.apps.files // empty' "$config_file" 2>/dev/null || true)"
+        else
+            fm="$(sed -n 's/.*"files"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$config_file" | head -1)"
+        fi
+    fi
+
+    fm="${fm:-nautilus}"
+
+    if command -v "$fm" >/dev/null 2>&1; then
+        exec_scoped "$fm" "$@"
+    fi
+
+    local fallback
+    for fallback in nautilus dolphin thunar nemo pcmanfm; do
+        if command -v "$fallback" >/dev/null 2>&1; then
+            exec_scoped "$fallback" "$@"
+        fi
+    done
+
+    echo "No file manager found" >&2
+    exit 1
+}
+
+# Exec command inside transient user scope
+exec_scoped() {
+    local bin_name
+    bin_name="$(basename "$1")"
+    if command -v systemd-run >/dev/null 2>&1 && [[ -S "$XDG_RUNTIME_DIR/systemd/private" ]]; then
+        local unit_prefix="inir-${bin_name//[^a-zA-Z0-9_:.-]/-}"
+        exec systemd-run --user --quiet --collect --same-dir --scope \
+            --unit="${unit_prefix}-$$" --description="$bin_name" -- "$@"
+    fi
+    exec "$@"
 }
 
 parse_config_flag() {
@@ -3762,6 +3798,28 @@ case "$command_name" in
         done
         launch_configured_browser "$@"
         ;;
+    files)
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                --)
+                    shift
+                    break
+                    ;;
+                -h|--help)
+                    echo "Usage: inir files [-c PATH] [path]" >&2
+                    exit 0
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        launch_configured_files "$@"
+        ;;
     close-window)
         while [[ $# -gt 0 ]]; do
             case "$1" in
@@ -3817,13 +3875,16 @@ case "$command_name" in
                     usage
                     exit 0
                     ;;
+                call)
+                    shift
+                    ;;
                 *)
                     break
                     ;;
             esac
         done
         if [[ $# -lt 2 ]]; then
-            echo "Usage: inir ipc <target> <function> [args...]" >&2
+            echo "Usage: inir ipc [call] <target> <function> [args...]" >&2
             exit 1
         fi
         resolve_config_dir

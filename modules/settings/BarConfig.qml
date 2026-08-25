@@ -1119,7 +1119,6 @@ ContentPage {
             }
 
             ConfigSpinBox {
-                visible: root.barAppearance !== "islands"
                 icon: "rounded_corner"
                 text: Translation.tr("Custom bar rounding (px)")
                 value: Config.options?.bar?.customRounding ?? -1

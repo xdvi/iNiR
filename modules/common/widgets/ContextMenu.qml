@@ -5,7 +5,6 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
-import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -48,29 +47,12 @@ Loader {
         else root.active = false;
     }
 
-    function requestOpen(): void {
-        if (GlobalStates.activeContextMenu && GlobalStates.activeContextMenu !== root)
-            GlobalStates.activeContextMenu.active = false
-        root.active = true
-    }
-
     function updateAnchor(): void {
         item?.anchor.updateAnchor();
     }
 
     active: false
     visible: active
-
-    onActiveChanged: {
-        if (active) {
-            GlobalStates.activeContextMenu = root
-            GlobalStates.activeContextMenuCount++
-        } else {
-            if (GlobalStates.activeContextMenu === root)
-                GlobalStates.activeContextMenu = null
-            GlobalStates.activeContextMenuCount--
-        }
-    }
 
     sourceComponent: PopupWindow {
         id: popupWindow

@@ -45,7 +45,7 @@ Item { // Bar content region
         const mapped = mouseArea.mapToItem(root, clickX, clickY)
         barContextMenuAnchor.x = root.barOnRight ? 0 : root.width
         barContextMenuAnchor.y = mapped.y
-        barContextMenu.requestOpen()
+        barContextMenu.active = true
     }
 
     ContextMenu {
