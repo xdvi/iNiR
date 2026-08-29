@@ -65,7 +65,7 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: { customSwatch.syncFromStrokeColor(); colorPickerPopup.open(); }
+        onClicked: { customSwatch.syncFromAnnotationColor(); colorPickerPopup.open(); }
     }
     StyledToolTip { text: Translation.tr("Custom color") }
 
