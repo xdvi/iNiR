@@ -28,8 +28,7 @@ import Quickshell.Wayland
 // the claimed (or initially focused) output so Esc/Enter don't fight.
 PanelWindow {
     id: root
-    visible: true
-    opacity: (root.screenshotReady && sourceImage.status === Image.Ready) ? 1 : 0
+    visible: root.screenshotReady
     color: "transparent"
     WlrLayershell.namespace: "quickshell:screenshotEditor"
     WlrLayershell.layer: WlrLayer.Overlay
@@ -695,6 +694,11 @@ PanelWindow {
         id: captureArea
         anchors.fill: parent
 
+        Rectangle {
+            anchors.fill: parent
+            color: "#000000"
+        }
+
         Image {
             id: sourceImage
             anchors.fill: parent
@@ -703,7 +707,6 @@ PanelWindow {
             fillMode: Image.Stretch
             smooth: true
             cache: false
-            asynchronous: false
         }
 
         Repeater {

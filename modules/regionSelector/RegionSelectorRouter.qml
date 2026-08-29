@@ -19,7 +19,10 @@ Scope {
     // Dedicated screenshot calls are always a rectangular capture. The unified
     // menu is the only entry point allowed to restore a previous toolbar choice.
     function screenshot(): void { GlobalStates.openRegionScreenshot() }
-    function screenshotEdit(): void { GlobalStates.screenshotEditorOpen = true }
+    function screenshotEdit(): void {
+        GlobalStates.screenshotEditorOpen = false
+        GlobalStates.screenshotEditorOpen = true
+    }
     function search(): void {
         open(RegionSelection.SnipAction.Search,
             (Config.options?.search?.imageSearch?.useCircleSelection ?? false)
@@ -40,10 +43,13 @@ Scope {
         function record(): void { root.record() }
         function recordWithSound(): void { root.recordWithSound() }
         function menu(): void { root.menu() }
-        function dismiss(): void { GlobalStates.regionSelectorOpen = false }
+        function dismiss(): void {
+            GlobalStates.regionSelectorOpen = false
+            GlobalStates.screenshotEditorOpen = false
+        }
         function current(): string {
             return JSON.stringify({
-                open: GlobalStates.regionSelectorOpen,
+                open: GlobalStates.regionSelectorOpen || GlobalStates.screenshotEditorOpen,
                 action: GlobalStates.regionSelectorAction,
                 mode: GlobalStates.regionSelectorMode
             })
