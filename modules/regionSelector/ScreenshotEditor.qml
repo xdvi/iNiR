@@ -1036,7 +1036,6 @@ PanelWindow {
         delegate: HandleDot { z: 40 }
     }
 
-    // Cursor badge indicator: pencil icon + circular brush tip ("bolita")
     Item {
         id: penCursorIndicator
         visible: root.hasCrop && !root.cropDrawing && (root.tool === "pen" || root.tool === "highlight" || root.tool === "counter" || root.tool === "line" || root.tool === "rect" || root.tool === "circle" || root.tool === "arrow" || root.tool === "blur")
@@ -1044,7 +1043,6 @@ PanelWindow {
         y: canvasMouse.mouseY
         z: 45
 
-        // Brush thickness circle ("bolita") centered on the pointer tip
         Rectangle {
             width: Math.max(6, root.tool === "highlight" ? root.strokeWidth * 4 : root.strokeWidth)
             height: width
@@ -1056,7 +1054,6 @@ PanelWindow {
             border.color: "#ffffff"
         }
 
-        // Pencil / tool icon floating above the brush tip
         MaterialSymbol {
             x: 8
             y: -20
