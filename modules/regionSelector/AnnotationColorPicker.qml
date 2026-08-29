@@ -17,8 +17,8 @@ Rectangle {
     implicitWidth: 26
     implicitHeight: 26
     radius: Appearance.rounding.full
-    border.width: editor.strokeColorIsCustom ? 3 : 1
-    border.color: editor.strokeColorIsCustom
+    border.width: editor.annotationColorIsCustom ? 3 : 1
+    border.color: editor.annotationColorIsCustom
         ? Appearance.colors.colOnLayer1
         : Appearance.colors.colOutlineVariant
     Behavior on border.width {
@@ -47,15 +47,16 @@ Rectangle {
     property real pickSat: 0
     property real pickValue: 1
     property string hexText: "#000000"
-    function syncFromStrokeColor() {
-        pickHue = Math.max(0, editor.strokeColor.hsvHue);
-        pickSat = editor.strokeColor.hsvSaturation;
-        pickValue = editor.strokeColor.hsvValue;
-        hexText = editor.strokeColor.toString();
+    function syncFromAnnotationColor() {
+        pickHue = Math.max(0, editor.annotationColor.hsvHue);
+        pickSat = editor.annotationColor.hsvSaturation;
+        pickValue = editor.annotationColor.hsvValue;
+        hexText = editor.annotationColor.toString();
     }
+    function syncFromStrokeColor() { customSwatch.syncFromAnnotationColor(); }
     function applyHsv() {
-        editor.setStrokeColor(Qt.hsva(pickHue, pickSat, pickValue, 1));
-        hexText = editor.strokeColor.toString();
+        editor.setAnnotationColor(Qt.hsva(pickHue, pickSat, pickValue, 1));
+        hexText = editor.annotationColor.toString();
         editor.setLastCustomColor(hexText);
     }
 
@@ -196,8 +197,8 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
                 text: customSwatch.hexText
                 onEditingFinished: {
-                    customSwatch.editor.setStrokeColor(text);
-                    customSwatch.syncFromStrokeColor();
+                    customSwatch.editor.setAnnotationColor(text);
+                    customSwatch.syncFromAnnotationColor();
                     customSwatch.editor.setLastCustomColor(customSwatch.hexText);
                 }
             }
@@ -221,14 +222,14 @@ Rectangle {
                         implicitHeight: 22
                         radius: Appearance.rounding.full
                         color: baseSwatch.modelData
-                        border.width: customSwatch.editor.strokeColor == baseSwatch.modelData ? 3 : 1
-                        border.color: customSwatch.editor.strokeColor == baseSwatch.modelData
+                        border.width: customSwatch.editor.annotationColor == baseSwatch.modelData ? 3 : 1
+                        border.color: customSwatch.editor.annotationColor == baseSwatch.modelData
                             ? Appearance.colors.colOnLayer1
                             : Appearance.colors.colOutlineVariant
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: customSwatch.editor.setStrokeColor(baseSwatch.modelData)
+                            onClicked: customSwatch.editor.setAnnotationColor(baseSwatch.modelData)
                         }
                     }
                 }
@@ -242,16 +243,16 @@ Rectangle {
                         implicitHeight: 22
                         radius: Appearance.rounding.full
                         color: savedSwatch.modelData
-                        border.width: customSwatch.editor.strokeColor == savedSwatch.modelData ? 3 : 1
-                        border.color: customSwatch.editor.strokeColor == savedSwatch.modelData
+                        border.width: customSwatch.editor.annotationColor == savedSwatch.modelData ? 3 : 1
+                        border.color: customSwatch.editor.annotationColor == savedSwatch.modelData
                             ? Appearance.colors.colOnLayer1
                             : Appearance.colors.colOutlineVariant
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                customSwatch.editor.setStrokeColor(savedSwatch.modelData);
-                                customSwatch.syncFromStrokeColor();
+                                customSwatch.editor.setAnnotationColor(savedSwatch.modelData);
+                                customSwatch.syncFromAnnotationColor();
                                 customSwatch.editor.setLastCustomColor(savedSwatch.modelData);
                             }
                         }

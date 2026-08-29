@@ -31,7 +31,8 @@ PanelWindow {
 
     // ── Tool state ──────────────────────────────────────────────────────────
     property string tool: "pen"           // pen | rect | arrow | text | highlight
-    property color strokeColor: Appearance.m3colors.m3primary
+    property color annotationColor: Appearance.m3colors.m3primary
+    property alias strokeColor: root.annotationColor
     property real strokeWidth: 4
     property var strokes: []              // committed shape strokes
     property var texts: []                // committed text annotations

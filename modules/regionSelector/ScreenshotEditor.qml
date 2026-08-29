@@ -307,7 +307,8 @@ PanelWindow {
     // ── Tool state ───────────────────────────────────────────────────────────
     property string tool: "pen"           // pen | line | rect | circle | arrow | text | highlight | blur | counter | move
     readonly property string _initialCustomColor: Config.options?.regionSelector?.lastCustomColor ?? ""
-    property color strokeColor: root._initialCustomColor !== "" ? root._initialCustomColor : Appearance.m3colors.m3primary
+    property color annotationColor: root._initialCustomColor !== "" ? root._initialCustomColor : Appearance.m3colors.m3primary
+    property alias strokeColor: root.annotationColor
     property real strokeWidth: Config.options?.regionSelector?.lastStrokeWidth ?? 4
     property var strokes: []              // committed shape strokes
     property var texts: []                // committed text annotations
@@ -332,7 +333,8 @@ PanelWindow {
         "#ffffff",
         "#000000"
     ]
-    readonly property bool strokeColorIsCustom: !root.palette.some(c => c == root.strokeColor)
+    readonly property bool annotationColorIsCustom: !root.palette.some(c => c == root.annotationColor)
+    readonly property bool strokeColorIsCustom: root.annotationColorIsCustom
 
     // Custom colors picked across sessions, so reusing one doesn't mean retyping the hex.
     property var savedCustomColors: Config.options?.regionSelector?.customColors ?? []
@@ -440,8 +442,8 @@ PanelWindow {
     }
 
     // Recolors the selected object if one is selected; always updates the draw color too.
-    function setStrokeColor(c) {
-        root.strokeColor = c;
+    function setAnnotationColor(c) {
+        root.annotationColor = c;
         keySink.forceActiveFocus();
         if (!root.selected) return;
         root.pushHistory();
@@ -452,6 +454,7 @@ PanelWindow {
             root.updateText(root.selected.index, { color: String(c) });
         }
     }
+    function setStrokeColor(c) { root.setAnnotationColor(c); }
 
     // Resizes the selected shape's stroke (or selected text's font size) if
     // one is selected; always updates the draw width too.
@@ -488,7 +491,7 @@ PanelWindow {
     function addText(x, y) {
         root.pushHistory();
         const arr = root.texts.slice();
-        arr.push({ x: x, y: y, text: "", color: String(root.strokeColor), size: Math.max(14, root.strokeWidth * 5), bold: false, italic: false, underline: false, strikeout: false });
+        arr.push({ x: x, y: y, text: "", color: String(root.annotationColor), size: Math.max(14, root.strokeWidth * 5), bold: false, italic: false, underline: false, strikeout: false });
         root.texts = arr;
         textRepeater.focusLast();
     }
@@ -552,7 +555,7 @@ PanelWindow {
     function addCounter(x, y) {
         root.pushHistory();
         const arr = root.strokes.slice();
-        arr.push({ tool: "counter", color: String(root.strokeColor), width: root.strokeWidth, pts: [Qt.point(x, y)], n: root.nextCounterNumber() });
+        arr.push({ tool: "counter", color: String(root.annotationColor), width: root.strokeWidth, pts: [Qt.point(x, y)], n: root.nextCounterNumber() });
         root.strokes = arr;
         root.selected = { kind: "shape", index: arr.length - 1 };
     }
@@ -575,7 +578,7 @@ PanelWindow {
         // space (e.g. on the way to the toolbar) never deselects by accident.
         if (hit) {
             root.selected = { kind: hit.kind, index: hit.index };
-            root.strokeColor = hit.kind === "shape" ? root.strokes[hit.index].color : root.texts[hit.index].color;
+            root.annotationColor = hit.kind === "shape" ? root.strokes[hit.index].color : root.texts[hit.index].color;
             if (hit.kind === "shape") {
                 const s = root.strokes[hit.index];
                 // Undo the highlighter 4x so the slider shows the base width.
@@ -1069,7 +1072,7 @@ PanelWindow {
             width: 3
             height: 3
             radius: 1.5
-            color: root.strokeColor
+            color: root.annotationColor
             border.width: 0.5
             border.color: "#ffffff"
         }
@@ -1086,9 +1089,9 @@ PanelWindow {
         radius: diameter / 2
         x: canvasMouse.mouseX - width / 2
         y: canvasMouse.mouseY - height / 2
-        color: root.tool === "highlight" ? ColorUtils.applyAlpha(root.strokeColor, 0.25) : ColorUtils.applyAlpha(root.strokeColor, 0.15)
+        color: root.tool === "highlight" ? ColorUtils.applyAlpha(root.annotationColor, 0.25) : ColorUtils.applyAlpha(root.annotationColor, 0.15)
         border.width: 1.5
-        border.color: root.strokeColor
+        border.color: root.annotationColor
     }
 
     // ── Interaction — crop-handle drag takes priority over the active tool ────
@@ -1185,7 +1188,7 @@ PanelWindow {
             _lastPenPoint = Qt.point(m.x, m.y);
             root.setCurrent({
                 tool: root.tool,
-                color: String(root.strokeColor),
+                color: String(root.annotationColor),
                 width: root.tool === "highlight" ? root.strokeWidth * 4 : root.strokeWidth,
                 filled: (root.tool === "rect" || root.tool === "circle") ? root.fillShape : false,
                 pts: [Qt.point(m.x, m.y)]
