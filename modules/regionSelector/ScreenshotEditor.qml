@@ -1036,6 +1036,20 @@ PanelWindow {
         delegate: HandleDot { z: 40 }
     }
 
+    // Cursor badge indicator for active drawing tool (pencil icon at cursor tip on release)
+    Item {
+        id: penCursorIndicator
+        visible: root.hasCrop && !root.cropDrawing && (root.tool === "pen" || root.tool === "highlight" || root.tool === "counter")
+        x: canvasMouse.mouseX + 4
+        y: canvasMouse.mouseY - 20
+        z: 45
+        MaterialSymbol {
+            text: root.tool === "highlight" ? "ink_highlighter" : root.tool === "counter" ? "counter_1" : "edit"
+            iconSize: 18
+            color: Appearance.m3colors.m3primary
+        }
+    }
+
     // ── Interaction — crop-handle drag takes priority over the active tool ────
     MouseArea {
         id: canvasMouse
