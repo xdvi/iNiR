@@ -29,6 +29,7 @@ import Quickshell.Wayland
 PanelWindow {
     id: root
     visible: true
+    opacity: (root.screenshotReady && sourceImage.status === Image.Ready) ? 1 : 0
     color: "transparent"
     WlrLayershell.namespace: "quickshell:screenshotEditor"
     WlrLayershell.layer: WlrLayer.Overlay
@@ -702,6 +703,7 @@ PanelWindow {
             fillMode: Image.Stretch
             smooth: true
             cache: false
+            asynchronous: false
         }
 
         Repeater {
