@@ -308,7 +308,6 @@ PanelWindow {
     property string tool: "pen"           // pen | line | rect | circle | arrow | text | highlight | blur | counter | move
     readonly property string _initialCustomColor: Config.options?.regionSelector?.lastCustomColor ?? ""
     property color annotationColor: root._initialCustomColor !== "" ? root._initialCustomColor : Appearance.m3colors.m3primary
-    property alias strokeColor: root.annotationColor
     property real strokeWidth: Config.options?.regionSelector?.lastStrokeWidth ?? 4
     property var strokes: []              // committed shape strokes
     property var texts: []                // committed text annotations
@@ -334,7 +333,6 @@ PanelWindow {
         "#000000"
     ]
     readonly property bool annotationColorIsCustom: !root.palette.some(c => c == root.annotationColor)
-    readonly property bool strokeColorIsCustom: root.annotationColorIsCustom
 
     // Custom colors picked across sessions, so reusing one doesn't mean retyping the hex.
     property var savedCustomColors: Config.options?.regionSelector?.customColors ?? []
@@ -454,7 +452,6 @@ PanelWindow {
             root.updateText(root.selected.index, { color: String(c) });
         }
     }
-    function setStrokeColor(c) { root.setAnnotationColor(c); }
 
     // Resizes the selected shape's stroke (or selected text's font size) if
     // one is selected; always updates the draw width too.

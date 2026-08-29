@@ -53,7 +53,6 @@ Rectangle {
         pickValue = editor.annotationColor.hsvValue;
         hexText = editor.annotationColor.toString();
     }
-    function syncFromStrokeColor() { customSwatch.syncFromAnnotationColor(); }
     function applyHsv() {
         editor.setAnnotationColor(Qt.hsva(pickHue, pickSat, pickValue, 1));
         hexText = editor.annotationColor.toString();
