@@ -1036,15 +1036,31 @@ PanelWindow {
         delegate: HandleDot { z: 40 }
     }
 
-    // Cursor badge indicator for active drawing tool (pencil icon at cursor tip on release)
+    // Cursor badge indicator: pencil icon + circular brush tip ("bolita")
     Item {
         id: penCursorIndicator
-        visible: root.hasCrop && !root.cropDrawing && (root.tool === "pen" || root.tool === "highlight" || root.tool === "counter")
-        x: canvasMouse.mouseX + 4
-        y: canvasMouse.mouseY - 20
+        visible: root.hasCrop && !root.cropDrawing && (root.tool === "pen" || root.tool === "highlight" || root.tool === "counter" || root.tool === "line" || root.tool === "rect" || root.tool === "circle" || root.tool === "arrow" || root.tool === "blur")
+        x: canvasMouse.mouseX
+        y: canvasMouse.mouseY
         z: 45
+
+        // Brush thickness circle ("bolita") centered on the pointer tip
+        Rectangle {
+            width: Math.max(6, root.tool === "highlight" ? root.strokeWidth * 4 : root.strokeWidth)
+            height: width
+            radius: width / 2
+            x: -width / 2
+            y: -height / 2
+            color: root.tool === "highlight" ? ColorUtils.applyAlpha(root.strokeColor, 0.5) : root.strokeColor
+            border.width: 1.5
+            border.color: "#ffffff"
+        }
+
+        // Pencil / tool icon floating above the brush tip
         MaterialSymbol {
-            text: root.tool === "highlight" ? "ink_highlighter" : root.tool === "counter" ? "counter_1" : "edit"
+            x: 8
+            y: -20
+            text: root.tool === "highlight" ? "ink_highlighter" : root.tool === "counter" ? "counter_1" : root.tool === "blur" ? "blur_on" : "edit"
             iconSize: 18
             color: Appearance.m3colors.m3primary
         }
@@ -1061,7 +1077,10 @@ PanelWindow {
         cursorShape: root.cropDragHandle >= 0 ? Qt.SizeFDiagCursor
             : (root.cropDragEdge === 0 || root.cropDragEdge === 2) ? Qt.SizeVerCursor
             : (root.cropDragEdge === 1 || root.cropDragEdge === 3) ? Qt.SizeHorCursor
-            : root.tool === "move" ? (root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.CrossCursor
+            : root.tool === "move" ? (root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+            : root.tool === "text" ? Qt.IBeamCursor
+            : (!root.hasCrop || root.cropDrawing) ? Qt.CrossCursor
+            : Qt.BlankCursor
         readonly property real minPointStep: 2.5
         property point _lastPenPoint: Qt.point(NaN, NaN)
         property bool _dragSnapped: false
