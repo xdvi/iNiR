@@ -19,10 +19,7 @@ Scope {
     // Dedicated screenshot calls are always a rectangular capture. The unified
     // menu is the only entry point allowed to restore a previous toolbar choice.
     function screenshot(): void { GlobalStates.openRegionScreenshot() }
-    function screenshotEdit(): void {
-        GlobalStates.screenshotEditorOpen = false
-        GlobalStates.screenshotEditorOpen = true
-    }
+    function screenshotEdit(): void { GlobalStates.screenshotEditorOpen = true }
     function search(): void {
         open(RegionSelection.SnipAction.Search,
             (Config.options?.search?.imageSearch?.useCircleSelection ?? false)
