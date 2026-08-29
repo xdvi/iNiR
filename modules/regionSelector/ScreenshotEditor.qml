@@ -96,13 +96,13 @@ PanelWindow {
     }
     Shortcut {
         sequence: "Ctrl+S"
-        enabled: root.hasCrop && !root.suppressGlobalKeys
+        enabled: root.hasCrop && !root.cropDrawing && !root.suppressGlobalKeys
         context: Qt.ApplicationShortcut
         onActivated: root.requestSave()
     }
     Shortcut {
         sequence: "Ctrl+C"
-        enabled: root.hasCrop && !root.suppressGlobalKeys
+        enabled: root.hasCrop && !root.cropDrawing && !root.suppressGlobalKeys
         context: Qt.ApplicationShortcut
         onActivated: root.requestClipboard()
     }
@@ -116,7 +116,7 @@ PanelWindow {
 
     function setCrop(c) {
         root.crop = c;
-        root.hasCrop = root.cropIsValid(c);
+        root.hasCrop = !root.cropDrawing && root.cropIsValid(c);
     }
 
     // "save" = disk only; "clipboard" = wl-copy only. Debounced for multi-path keys.
@@ -127,7 +127,7 @@ PanelWindow {
     function requestExport(mode) {
         if (root.suppressGlobalKeys || root._exportRequested || root._exportPending)
             return;
-        if (!root.hasCrop || root.crop === null) {
+        if (!root.hasCrop || root.cropDrawing || root.crop === null) {
             Quickshell.execDetached(["/usr/bin/notify-send", "Screenshot", "Crop a region first", "-a", "Screenshot", "-t", "2000"]);
             return;
         }
@@ -293,7 +293,7 @@ PanelWindow {
 
     Process {
         id: captureProc
-        command: ["/usr/bin/bash", "-c", `mkdir -p '${StringUtils.shellSingleQuoteEscape(Directories.screenshotTemp)}' && /usr/bin/grim -o '${StringUtils.shellSingleQuoteEscape(root.screen.name)}' '${StringUtils.shellSingleQuoteEscape(root.fullScreenshotPath)}'`]
+        command: ["/usr/bin/bash", "-c", `mkdir -p '${StringUtils.shellSingleQuoteEscape(Directories.screenshotTemp)}' && /usr/bin/grim -l 0 -o '${StringUtils.shellSingleQuoteEscape(root.screen.name)}' '${StringUtils.shellSingleQuoteEscape(root.fullScreenshotPath)}'`]
         onExited: (code) => {
             if (code !== 0) {
                 Quickshell.execDetached(["/usr/bin/notify-send", "Screenshot failed", "grim failed to capture the screen", "-a", "Screenshot", "-t", "4000"]);
@@ -993,7 +993,7 @@ PanelWindow {
         }
     }
     Repeater {
-        model: root.crop !== null ? root.cropHandlePositions(root.crop) : []
+        model: (root.crop !== null && !root.cropDrawing) ? root.cropHandlePositions(root.crop) : []
         delegate: HandleDot { z: 40 }
     }
 
@@ -1026,8 +1026,7 @@ PanelWindow {
             // Recover from an interrupted previous drag (no release delivered).
             if (root.cropDrawing) {
                 root.cropDrawing = false;
-                if (!root.cropIsValid(root.crop))
-                    root.setCrop(null);
+                root.setCrop(root.cropIsValid(root.crop) ? root.crop : null);
             }
             root.cropDragHandle = -1;
             root.cropDragEdge = -1;
@@ -1151,8 +1150,7 @@ PanelWindow {
             }
             if (root.cropDrawing) {
                 root.cropDrawing = false;
-                if (!root.cropIsValid(root.crop))
-                    root.setCrop(null);
+                root.setCrop(root.cropIsValid(root.crop) ? root.crop : null);
                 root.endPointerGesture();
                 return;
             }
@@ -1165,8 +1163,7 @@ PanelWindow {
         onCanceled: () => {
             if (root.cropDrawing) {
                 root.cropDrawing = false;
-                if (!root.cropIsValid(root.crop))
-                    root.setCrop(null);
+                root.setCrop(root.cropIsValid(root.crop) ? root.crop : null);
             }
             root.cropDragHandle = -1;
             root.cropDragEdge = -1;
@@ -1174,6 +1171,7 @@ PanelWindow {
             root.endPointerGesture();
         }
         onDoubleClicked: (m) => {
+            if (!root.hasCrop || root.cropDrawing) return;
             const hit = root.hitTest(m.x, m.y);
             if (!hit || hit.kind !== "text") return;
             root.tool = "text";
@@ -1182,193 +1180,198 @@ PanelWindow {
         }
     }
 
-    // ── Tool palette — always active, no separate phase ─────────────────────
-    Item {
-        id: toolbarShell
+    // ── Tool palette — lazy loaded on first crop ──────────────────────────────
+    Loader {
+        id: toolbarLoader
         z: 100
-        // Hidden until a real crop exists (not the live 0×0 press seed).
-        visible: root.hasCrop
-        readonly property bool useWaffle: Config.options?.panelFamily === "waffle"
+        active: root.hasCrop && !root.cropDrawing
+        visible: active
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 8
-        implicitWidth: editorToolbar.implicitWidth
-        implicitHeight: 64
+        sourceComponent: Component {
+            Item {
+                id: toolbarShell
+                readonly property bool useWaffle: Config.options?.panelFamily === "waffle"
+                implicitWidth: editorToolbar.implicitWidth
+                implicitHeight: 64
 
-        // Waffle (Windows 11) container styling — flat Fluent pane behind the
-        // same tools. Icons stay MaterialSymbol since the Fluent set lacks them.
-        Rectangle {
-            anchors.fill: parent
-            visible: toolbarShell.useWaffle
-            radius: Looks.radius.large
-            color: Looks.colors.bgPanelFooterBase
-            border.width: 1
-            border.color: Looks.colors.bg2Border
-            WRectangularShadow { target: parent }
-        }
-
-        Toolbar {
-            id: editorToolbar
-            anchors.fill: parent
-            transparent: toolbarShell.useWaffle
-            padding: 10
-            radius: Appearance.rounding.full
-            spacing: 6
-
-            // Move/select mode, set apart from the drawing tools.
-            IconToolbarButton {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.fillHeight: true
-                focusPolicy: Qt.NoFocus
-                text: "open_with"
-                toggled: root.tool === "move"
-                onClicked: { if (root.tool !== "move") root.selected = null; root.tool = "move"; root.focusKeySink(); }
-                StyledToolTip { text: Translation.tr("Move") }
-            }
-
-            ToolbarDivider {}
-
-            Repeater {
-                model: [
-                    { "tool": "pen", "icon": "edit", "name": Translation.tr("Pen") },
-                    { "tool": "line", "icon": "horizontal_rule", "name": Translation.tr("Line") },
-                    { "tool": "rect", "icon": "rectangle", "name": Translation.tr("Rectangle") },
-                    { "tool": "circle", "icon": "circle", "name": Translation.tr("Circle") },
-                    { "tool": "arrow", "icon": "north_east", "name": Translation.tr("Arrow") },
-                    { "tool": "text", "icon": "title", "name": Translation.tr("Text") },
-                    { "tool": "highlight", "icon": "ink_highlighter", "name": Translation.tr("Highlighter") },
-                    { "tool": "blur", "icon": "blur_on", "name": Translation.tr("Blur") },
-                    { "tool": "counter", "icon": "counter_1", "name": Translation.tr("Counter") }
-                ]
-                delegate: IconToolbarButton {
-                    id: toolBtn
-                    required property var modelData
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.fillHeight: true
-                    focusPolicy: Qt.NoFocus
-                    text: modelData.icon
-                    toggled: root.tool === modelData.tool
-                    // Switching tools drops the selection so the stroke slider
-                    // targets the next drawing, not the previously selected object.
-                    onClicked: { if (root.tool !== modelData.tool) root.selected = null; root.tool = modelData.tool; root.focusKeySink(); }
-                    StyledToolTip { text: toolBtn.modelData.name }
+                // Waffle (Windows 11) container styling — flat Fluent pane behind the
+                // same tools. Icons stay MaterialSymbol since the Fluent set lacks them.
+                Rectangle {
+                    anchors.fill: parent
+                    visible: toolbarShell.useWaffle
+                    radius: Looks.radius.large
+                    color: Looks.colors.bgPanelFooterBase
+                    border.width: 1
+                    border.color: Looks.colors.bg2Border
+                    WRectangularShadow { target: parent }
                 }
-            }
 
-            ToolbarDivider {}
+                Toolbar {
+                    id: editorToolbar
+                    anchors.fill: parent
+                    transparent: toolbarShell.useWaffle
+                    padding: 10
+                    radius: Appearance.rounding.full
+                    spacing: 6
 
-            AnnotationColorPicker {
-                editor: root
-                Layout.alignment: Qt.AlignVCenter
-            }
+                    // Move/select mode, set apart from the drawing tools.
+                    IconToolbarButton {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.fillHeight: true
+                        focusPolicy: Qt.NoFocus
+                        text: "open_with"
+                        toggled: root.tool === "move"
+                        onClicked: { if (root.tool !== "move") root.selected = null; root.tool = "move"; root.focusKeySink(); }
+                        StyledToolTip { text: Translation.tr("Move") }
+                    }
 
-            ToolbarDivider {}
+                    ToolbarDivider {}
 
-            StyledSlider {
-                id: widthSlider
-                Layout.alignment: Qt.AlignVCenter
-                Layout.preferredWidth: 96
-                focusPolicy: Qt.NoFocus
-                from: 1; to: 24
-                value: root.strokeWidth
-                // One snapshot per slider drag (only when a selected object will change).
-                onPressedChanged: if (pressed && root.selected) root.pushHistory()
-                onValueChanged: root.setStrokeWidth(value)
-                StyledToolTip { text: Translation.tr("Stroke width") }
-            }
+                    Repeater {
+                        model: [
+                            { "tool": "pen", "icon": "edit", "name": Translation.tr("Pen") },
+                            { "tool": "line", "icon": "horizontal_rule", "name": Translation.tr("Line") },
+                            { "tool": "rect", "icon": "rectangle", "name": Translation.tr("Rectangle") },
+                            { "tool": "circle", "icon": "circle", "name": Translation.tr("Circle") },
+                            { "tool": "arrow", "icon": "north_east", "name": Translation.tr("Arrow") },
+                            { "tool": "text", "icon": "title", "name": Translation.tr("Text") },
+                            { "tool": "highlight", "icon": "ink_highlighter", "name": Translation.tr("Highlighter") },
+                            { "tool": "blur", "icon": "blur_on", "name": Translation.tr("Blur") },
+                            { "tool": "counter", "icon": "counter_1", "name": Translation.tr("Counter") }
+                        ]
+                        delegate: IconToolbarButton {
+                            id: toolBtn
+                            required property var modelData
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.fillHeight: true
+                            focusPolicy: Qt.NoFocus
+                            text: modelData.icon
+                            toggled: root.tool === modelData.tool
+                            // Switching tools drops the selection so the stroke slider
+                            // targets the next drawing, not the previously selected object.
+                            onClicked: { if (root.tool !== modelData.tool) root.selected = null; root.tool = modelData.tool; root.focusKeySink(); }
+                            StyledToolTip { text: toolBtn.modelData.name }
+                        }
+                    }
 
-            // Fill toggle — shown for rect/circle tools or a selected rect/circle.
-            ToolbarDivider { visible: root.fillApplicable }
-            IconToolbarButton {
-                visible: root.fillApplicable
-                Layout.alignment: Qt.AlignVCenter
-                Layout.fillHeight: true
-                focusPolicy: Qt.NoFocus
-                text: "format_color_fill"
-                toggled: root.fillActive
-                onClicked: root.toggleFill()
-                StyledToolTip { text: Translation.tr("Fill") }
-            }
+                    ToolbarDivider {}
 
-            // Text styling — shown only while a text object is selected.
-            ToolbarDivider { visible: root.selectedText !== null }
-            Repeater {
-                model: [
-                    { "flag": "bold", "icon": "format_bold", "name": Translation.tr("Bold") },
-                    { "flag": "italic", "icon": "format_italic", "name": Translation.tr("Italic") },
-                    { "flag": "underline", "icon": "format_underlined", "name": Translation.tr("Underline") },
-                    { "flag": "strikeout", "icon": "strikethrough_s", "name": Translation.tr("Strikethrough") }
-                ]
-                delegate: IconToolbarButton {
-                    id: styleBtn
-                    required property var modelData
-                    visible: root.selectedText !== null
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.fillHeight: true
-                    focusPolicy: Qt.NoFocus
-                    text: modelData.icon
-                    toggled: root.selectedText ? (root.selectedText[modelData.flag] ?? false) : false
-                    onClicked: root.toggleTextStyle(modelData.flag)
-                    StyledToolTip { text: modelData.name }
+                    AnnotationColorPicker {
+                        editor: root
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+
+                    ToolbarDivider {}
+
+                    StyledSlider {
+                        id: widthSlider
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 96
+                        focusPolicy: Qt.NoFocus
+                        from: 1; to: 24
+                        value: root.strokeWidth
+                        // One snapshot per slider drag (only when a selected object will change).
+                        onPressedChanged: if (pressed && root.selected) root.pushHistory()
+                        onValueChanged: root.setStrokeWidth(value)
+                        StyledToolTip { text: Translation.tr("Stroke width") }
+                    }
+
+                    // Fill toggle — shown for rect/circle tools or a selected rect/circle.
+                    ToolbarDivider { visible: root.fillApplicable }
+                    IconToolbarButton {
+                        visible: root.fillApplicable
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.fillHeight: true
+                        focusPolicy: Qt.NoFocus
+                        text: "format_color_fill"
+                        toggled: root.fillActive
+                        onClicked: root.toggleFill()
+                        StyledToolTip { text: Translation.tr("Fill") }
+                    }
+
+                    // Text styling — shown only while a text object is selected.
+                    ToolbarDivider { visible: root.selectedText !== null }
+                    Repeater {
+                        model: [
+                            { "flag": "bold", "icon": "format_bold", "name": Translation.tr("Bold") },
+                            { "flag": "italic", "icon": "format_italic", "name": Translation.tr("Italic") },
+                            { "flag": "underline", "icon": "format_underlined", "name": Translation.tr("Underline") },
+                            { "flag": "strikeout", "icon": "strikethrough_s", "name": Translation.tr("Strikethrough") }
+                        ]
+                        delegate: IconToolbarButton {
+                            id: styleBtn
+                            required property var modelData
+                            visible: root.selectedText !== null
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.fillHeight: true
+                            focusPolicy: Qt.NoFocus
+                            text: modelData.icon
+                            toggled: root.selectedText ? (root.selectedText[modelData.flag] ?? false) : false
+                            onClicked: root.toggleTextStyle(modelData.flag)
+                            StyledToolTip { text: modelData.name }
+                        }
+                    }
+
+                    FadeIconButton {
+                        text: "control_point_duplicate"
+                        enabled: root.selected !== null
+                        onClicked: root.duplicateSelected()
+                        StyledToolTip { text: Translation.tr("Duplicate (Ctrl+D)") }
+                    }
+
+                    FadeIconButton {
+                        text: "delete"
+                        enabled: root.selected !== null
+                        onClicked: root.deleteSelected()
+                        StyledToolTip { text: Translation.tr("Delete (Del)") }
+                    }
+
+                    FadeIconButton {
+                        text: "undo"
+                        enabled: root.undoStack.length > 0
+                        onClicked: root.undo()
+                        StyledToolTip { text: Translation.tr("Undo (Ctrl+Z)") }
+                    }
+
+                    FadeIconButton {
+                        text: "redo"
+                        enabled: root.redoStack.length > 0
+                        onClicked: root.redo()
+                        StyledToolTip { text: Translation.tr("Redo (Ctrl+Y)") }
+                    }
+
+                    IconToolbarButton {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.fillHeight: true
+                        focusPolicy: Qt.NoFocus
+                        text: "content_copy"
+                        onClicked: root.requestClipboard()
+                        StyledToolTip { text: Translation.tr("Copy to clipboard (Ctrl+C)") }
+                    }
+
+                    FloatingActionButton {
+                        id: saveFab
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.fillHeight: true
+                        focusPolicy: Qt.NoFocus
+                        baseSize: 44
+                        iconText: "done"
+                        onClicked: root.requestSave()
+                        StyledToolTip { text: Translation.tr("Save to screenshots folder (Ctrl+S)") }
+                    }
+
+                    IconToolbarButton {
+                        id: closeBtn
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.fillHeight: true
+                        focusPolicy: Qt.NoFocus
+                        text: "close"
+                        onClicked: root.close()
+                        StyledToolTip { text: Translation.tr("Discard (Esc)") }
+                    }
                 }
-            }
-
-            FadeIconButton {
-                text: "control_point_duplicate"
-                enabled: root.selected !== null
-                onClicked: root.duplicateSelected()
-                StyledToolTip { text: Translation.tr("Duplicate (Ctrl+D)") }
-            }
-
-            FadeIconButton {
-                text: "delete"
-                enabled: root.selected !== null
-                onClicked: root.deleteSelected()
-                StyledToolTip { text: Translation.tr("Delete (Del)") }
-            }
-
-            FadeIconButton {
-                text: "undo"
-                enabled: root.undoStack.length > 0
-                onClicked: root.undo()
-                StyledToolTip { text: Translation.tr("Undo (Ctrl+Z)") }
-            }
-
-            FadeIconButton {
-                text: "redo"
-                enabled: root.redoStack.length > 0
-                onClicked: root.redo()
-                StyledToolTip { text: Translation.tr("Redo (Ctrl+Y)") }
-            }
-
-            IconToolbarButton {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.fillHeight: true
-                focusPolicy: Qt.NoFocus
-                text: "content_copy"
-                onClicked: root.requestClipboard()
-                StyledToolTip { text: Translation.tr("Copy to clipboard (Ctrl+C)") }
-            }
-
-            FloatingActionButton {
-                id: saveFab
-                Layout.alignment: Qt.AlignVCenter
-                Layout.fillHeight: true
-                focusPolicy: Qt.NoFocus
-                baseSize: 44
-                iconText: "done"
-                onClicked: root.requestSave()
-                StyledToolTip { text: Translation.tr("Save to screenshots folder (Ctrl+S)") }
-            }
-
-            IconToolbarButton {
-                id: closeBtn
-                Layout.alignment: Qt.AlignVCenter
-                Layout.fillHeight: true
-                focusPolicy: Qt.NoFocus
-                text: "close"
-                onClicked: root.close()
-                StyledToolTip { text: Translation.tr("Discard (Esc)") }
             }
         }
     }
