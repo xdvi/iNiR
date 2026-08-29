@@ -969,11 +969,9 @@ PanelWindow {
         }
     }
 
-    readonly property color overlayColor: Appearance.angelEverywhere ? ColorUtils.applyAlpha(Appearance.colors.colScrim, 0.33)
-        : Appearance.inirEverywhere ? ColorUtils.applyAlpha(Appearance.colors.colScrim, 0.53)
-        : Appearance.auroraEverywhere ? ColorUtils.applyAlpha(Appearance.colors.colScrim, 0.4) : ColorUtils.applyAlpha(Appearance.colors.colScrim, 0.53)
+    readonly property color overlayColor: Qt.rgba(0, 0, 0, 0.50)
 
-    // Fully dim until a crop exists — starts softly dimmed with theme scrim.
+    // Fully dim until a crop exists — 50% dark translucent scrim over the frozen screen.
     Rectangle {
         anchors.fill: parent
         visible: root.crop === null
