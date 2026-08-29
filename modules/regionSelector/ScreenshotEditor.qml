@@ -1036,32 +1036,59 @@ PanelWindow {
         delegate: HandleDot { z: 40 }
     }
 
-    // Drawing tool brush tip and icon cursor follower.
+    // Custom pencil cursor with drop shadow and precision tip dot.
     Item {
-        id: penCursorIndicator
-        visible: root.hasCrop && !root.cropDrawing && (root.tool === "pen" || root.tool === "highlight" || root.tool === "counter" || root.tool === "line" || root.tool === "rect" || root.tool === "circle" || root.tool === "arrow" || root.tool === "blur")
+        id: customPencilCursor
+        visible: canvasMouse.containsMouse && root.hasCrop && !root.cropDrawing && root.tool === "pen" && canvasMouse._hoverHandle < 0 && canvasMouse._hoverEdge < 0
+        z: 30
         x: canvasMouse.mouseX
         y: canvasMouse.mouseY
-        z: 45
+        width: 1
+        height: 1
 
-        Rectangle {
-            width: Math.max(6, root.tool === "highlight" ? root.strokeWidth * 4 : root.strokeWidth)
-            height: width
-            radius: width / 2
-            x: -width / 2
-            y: -height / 2
-            color: root.tool === "highlight" ? ColorUtils.applyAlpha(root.strokeColor, 0.5) : root.strokeColor
-            border.width: 1.5
-            border.color: "#ffffff"
+        MaterialSymbol {
+            x: -2
+            y: -18
+            text: "edit"
+            iconSize: 20
+            color: "#000000"
+            opacity: 0.7
         }
 
         MaterialSymbol {
-            x: 8
-            y: -20
-            text: root.tool === "highlight" ? "ink_highlighter" : root.tool === "counter" ? "counter_1" : root.tool === "blur" ? "blur_on" : "edit"
-            iconSize: 18
-            color: Appearance.m3colors.m3primary
+            x: -3
+            y: -19
+            text: "edit"
+            iconSize: 20
+            color: root.strokeColor
         }
+
+        Rectangle {
+            x: -1.5
+            y: -1.5
+            width: 3
+            height: 3
+            radius: 1.5
+            color: root.strokeColor
+            border.width: 0.5
+            border.color: "#ffffff"
+        }
+    }
+
+    // Dynamic brush preview ring showing stroke width and color.
+    Rectangle {
+        id: brushPreviewRing
+        visible: canvasMouse.containsMouse && !root.pointerDown && root.hasCrop && !root.cropDrawing && (root.tool === "pen" || root.tool === "highlight") && canvasMouse._hoverHandle < 0 && canvasMouse._hoverEdge < 0
+        z: 20
+        readonly property real diameter: root.tool === "highlight" ? Math.max(14, root.strokeWidth * 4) : Math.max(8, root.strokeWidth)
+        width: diameter
+        height: diameter
+        radius: diameter / 2
+        x: canvasMouse.mouseX - width / 2
+        y: canvasMouse.mouseY - height / 2
+        color: root.tool === "highlight" ? ColorUtils.applyAlpha(root.strokeColor, 0.25) : ColorUtils.applyAlpha(root.strokeColor, 0.15)
+        border.width: 1.5
+        border.color: root.strokeColor
     }
 
     // ── Interaction — crop-handle drag takes priority over the active tool ────
@@ -1072,19 +1099,31 @@ PanelWindow {
         z: 5
         focus: true
         acceptedButtons: Qt.LeftButton
-        cursorShape: root.cropDragHandle >= 0 ? Qt.SizeFDiagCursor
-            : (root.cropDragEdge === 0 || root.cropDragEdge === 2) ? Qt.SizeVerCursor
-            : (root.cropDragEdge === 1 || root.cropDragEdge === 3) ? Qt.SizeHorCursor
-            : root.tool === "move" ? (root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
-            : root.tool === "text" ? Qt.IBeamCursor
-            : (!root.hasCrop || root.cropDrawing) ? Qt.CrossCursor
-            : Qt.BlankCursor
+        property int _hoverHandle: -1
+        property int _hoverEdge: -1
+        cursorShape: {
+            if (!root.hasCrop || root.cropDrawing) return Qt.CrossCursor;
+            const h = root.cropDragHandle >= 0 ? root.cropDragHandle : _hoverHandle;
+            if (h >= 0) return (h === 0 || h === 2) ? Qt.SizeFDiagCursor : Qt.SizeBDiagCursor;
+            const e = root.cropDragEdge >= 0 ? root.cropDragEdge : _hoverEdge;
+            if (e >= 0) return (e === 0 || e === 2) ? Qt.SizeVerCursor : Qt.SizeHorCursor;
+            if (root.tool === "move") return (root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor);
+            if (root.tool === "text") return Qt.IBeamCursor;
+            if (root.tool === "counter") return Qt.PointingHandCursor;
+            if (root.tool === "pen") return Qt.BlankCursor;
+            return Qt.CrossCursor;
+        }
         readonly property real minPointStep: 2.5
         property point _lastPenPoint: Qt.point(NaN, NaN)
         property bool _dragSnapped: false
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: (e) => root.handleEditorKey(e)
         Keys.onEscapePressed: (e) => { root.close(); e.accepted = true; }
+
+        onExited: () => {
+            _hoverHandle = -1;
+            _hoverEdge = -1;
+        }
 
         onPressed: (m) => {
             // Another output already owns the session — dim-only here.
@@ -1153,6 +1192,10 @@ PanelWindow {
             });
         }
         onPositionChanged: (m) => {
+            if (!root.pointerDown) {
+                _hoverHandle = root.cropIsValid(root.crop) ? root.cropHandleAt(m.x, m.y) : -1;
+                _hoverEdge = (_hoverHandle < 0 && root.cropIsValid(root.crop)) ? root.cropEdgeAt(m.x, m.y) : -1;
+            }
             // Keep updating an in-progress crop even if claim/focus flickered;
             // only hard-stop when another output owns the session and we are idle.
             if (!root.canInteract && !root.cropDrawing && root.cropDragHandle < 0 && root.cropDragEdge < 0)
