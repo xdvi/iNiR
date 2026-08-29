@@ -986,12 +986,51 @@ PanelWindow {
         Rectangle { x: 0; y: parent.c.y; width: parent.c.x; height: parent.c.h; color: Qt.rgba(0, 0, 0, 0.55) }
         Rectangle { x: parent.c.x + parent.c.w; y: parent.c.y; width: parent.width - parent.c.x - parent.c.w; height: parent.c.h; color: Qt.rgba(0, 0, 0, 0.55) }
         Rectangle {
+            id: cropBorderRect
             x: parent.c.x; y: parent.c.y; width: parent.c.w; height: parent.c.h
             color: "transparent"
             border.width: 2
             border.color: Appearance.m3colors.m3primary
         }
+        StyledText {
+            z: 2
+            visible: parent.c.w >= 20 && parent.c.h >= 20
+            anchors {
+                top: cropBorderRect.bottom
+                right: cropBorderRect.right
+                margins: 8
+            }
+            color: Appearance.m3colors.m3primary
+            text: `${Math.round(parent.c.w)} x ${Math.round(parent.c.h)}`
+        }
     }
+
+    // Coordinate guide lines (crosshairs while hovering or drawing a crop)
+    Rectangle {
+        visible: (root.crop === null || root.cropDrawing) && (Config.options?.regionSelector?.rect?.showAimLines ?? true)
+        opacity: 0.35
+        z: 30
+        x: canvasMouse.mouseX
+        anchors {
+            top: parent.top
+            bottom: parent.bottom
+        }
+        width: 1
+        color: Appearance.m3colors.m3primary
+    }
+    Rectangle {
+        visible: (root.crop === null || root.cropDrawing) && (Config.options?.regionSelector?.rect?.showAimLines ?? true)
+        opacity: 0.35
+        z: 30
+        y: canvasMouse.mouseY
+        anchors {
+            left: parent.left
+            right: parent.right
+        }
+        height: 1
+        color: Appearance.m3colors.m3primary
+    }
+
     Repeater {
         model: (root.crop !== null && !root.cropDrawing) ? root.cropHandlePositions(root.crop) : []
         delegate: HandleDot { z: 40 }
@@ -1001,6 +1040,7 @@ PanelWindow {
     MouseArea {
         id: canvasMouse
         anchors.fill: parent
+        hoverEnabled: true
         z: 5
         focus: true
         acceptedButtons: Qt.LeftButton
