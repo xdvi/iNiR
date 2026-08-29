@@ -826,50 +826,58 @@ PanelWindow {
             }
         }
 
-        Canvas {
-            id: liveCanvas
+        // Live GPU-accelerated preview of the shape currently being drawn
+        Shape {
+            id: liveShape
             anchors.fill: parent
             z: 10
-            visible: root.current !== null
-            renderStrategy: Canvas.Threaded
-            renderTarget: Canvas.Image
+            visible: root.current !== null && root.current.tool !== "blur" && root.current.tool !== "rect"
+            preferredRendererType: (root.current?.tool === "pen" || root.current?.tool === "highlight")
+                ? Shape.GeometryRenderer : Shape.CurveRenderer
+            opacity: root.current?.tool === "highlight" ? 0.4 : 1.0
+            layer.enabled: root.current?.tool === "highlight"
 
-            property var s: root.current
-            onSChanged: requestPaint()
-
-            onPaint: {
-                const ctx = getContext("2d");
-                ctx.clearRect(0, 0, width, height);
-                if (!liveCanvas.s) return;
-                const pts = root.pointsFor(liveCanvas.s);
-                if (pts.length < 2) return;
-                ctx.lineCap = "round";
-                ctx.lineJoin = "round";
-                // Blur previews as a thin neutral dashed outline, not a thick colored rect.
-                if (liveCanvas.s.tool === "blur") {
-                    ctx.lineWidth = 1.5;
-                    ctx.strokeStyle = "#ffffff";
-                    ctx.setLineDash([4, 4]);
-                } else {
-                    ctx.lineWidth = liveCanvas.s.width;
-                    ctx.strokeStyle = liveCanvas.s.color;
-                    ctx.setLineDash([]);
+            ShapePath {
+                strokeColor: root.current?.color ?? "transparent"
+                strokeWidth: (root.current?.tool === "circle" && (root.current?.filled ?? false)) ? 0 : (root.current?.width ?? 2)
+                fillColor: (root.current?.filled && root.current?.tool === "circle") ? (root.current?.color ?? "transparent") : "transparent"
+                capStyle: ShapePath.RoundCap
+                joinStyle: ShapePath.RoundJoin
+                PathPolyline {
+                    path: root.pointsFor(root.current)
                 }
-                ctx.globalAlpha = liveCanvas.s.tool === "highlight" ? 0.4 : 1.0;
-                ctx.beginPath();
-                ctx.moveTo(pts[0].x, pts[0].y);
-                for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-                const fillPreview = liveCanvas.s.filled && (liveCanvas.s.tool === "rect" || liveCanvas.s.tool === "circle");
-                if (fillPreview) {
-                    ctx.closePath();
-                    ctx.fillStyle = liveCanvas.s.color;
-                    ctx.fill();
-                } else {
-                    ctx.stroke();
-                }
-                ctx.globalAlpha = 1.0;
-                ctx.setLineDash([]);
             }
+        }
+
+        // Live rectangle preview (geometry + fill)
+        Rectangle {
+            z: 10
+            visible: root.current !== null && root.current.tool === "rect"
+            readonly property var p0: root.current?.pts?.[0] ?? Qt.point(0,0)
+            readonly property var p1: root.current?.pts?.[(root.current?.pts?.length ?? 1) - 1] ?? Qt.point(0,0)
+            x: Math.min(p0.x, p1.x)
+            y: Math.min(p0.y, p1.y)
+            width: Math.abs(p1.x - p0.x)
+            height: Math.abs(p1.y - p0.y)
+            radius: Math.min(width / 2, height / 2, 6 + (root.current?.width ?? 4) * 1.2)
+            color: (root.current?.filled ?? false) ? (root.current?.color ?? "transparent") : "transparent"
+            border.width: (root.current?.filled ?? false) ? 0 : (root.current?.width ?? 4)
+            border.color: root.current?.color ?? "transparent"
+        }
+
+        // Live blur preview (outline)
+        Rectangle {
+            z: 10
+            visible: root.current !== null && root.current.tool === "blur"
+            readonly property var p0: root.current?.pts?.[0] ?? Qt.point(0,0)
+            readonly property var p1: root.current?.pts?.[(root.current?.pts?.length ?? 1) - 1] ?? Qt.point(0,0)
+            x: Math.min(p0.x, p1.x)
+            y: Math.min(p0.y, p1.y)
+            width: Math.abs(p1.x - p0.x)
+            height: Math.abs(p1.y - p0.y)
+            color: "transparent"
+            border.width: 1.5
+            border.color: "#ffffff"
         }
 
         Repeater {
@@ -1116,6 +1124,7 @@ PanelWindow {
         readonly property real minPointStep: 2.5
         property point _lastPenPoint: Qt.point(NaN, NaN)
         property bool _dragSnapped: false
+        property var _livePts: []
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: (e) => root.handleEditorKey(e)
         Keys.onEscapePressed: (e) => { root.close(); e.accepted = true; }
@@ -1183,12 +1192,13 @@ PanelWindow {
             if (root.tool === "counter") { root.addCounter(m.x, m.y); return; }
             root.pushHistory();
             _lastPenPoint = Qt.point(m.x, m.y);
+            _livePts = [Qt.point(m.x, m.y)];
             root.setCurrent({
                 tool: root.tool,
                 color: String(root.annotationColor),
                 width: root.tool === "highlight" ? root.strokeWidth * 4 : root.strokeWidth,
                 filled: (root.tool === "rect" || root.tool === "circle") ? root.fillShape : false,
-                pts: [Qt.point(m.x, m.y)]
+                pts: _livePts.slice()
             });
         }
         onPositionChanged: (m) => {
@@ -1241,17 +1251,21 @@ PanelWindow {
             }
             if (!root.current) return;
             const c = root.current;
+            const isFreehand = c.tool === "pen" || c.tool === "highlight";
+            const minStep = isFreehand ? 3.5 : 2.5;
             const dx = m.x - _lastPenPoint.x;
             const dy = m.y - _lastPenPoint.y;
-            if (dx*dx + dy*dy < minPointStep * minPointStep) return;
+            if (dx*dx + dy*dy < minStep * minStep) return;
             _lastPenPoint = Qt.point(m.x, m.y);
-            // New object, not mutated in place: same-reference assignment skips currentChanged.
-            const pts = (c.tool === "pen" || c.tool === "highlight")
-                ? c.pts.concat([Qt.point(m.x, m.y)])
-                : [c.pts[0], Qt.point(m.x, m.y)];
-            root.setCurrent({ tool: c.tool, color: c.color, width: c.width, filled: c.filled ?? false, pts: pts });
+            if (isFreehand) {
+                _livePts.push(Qt.point(m.x, m.y));
+                root.setCurrent({ tool: c.tool, color: c.color, width: c.width, filled: c.filled ?? false, pts: _livePts.slice() });
+            } else {
+                root.setCurrent({ tool: c.tool, color: c.color, width: c.width, filled: c.filled ?? false, pts: [c.pts[0], Qt.point(m.x, m.y)] });
+            }
         }
         onReleased: () => {
+            _livePts = [];
             if (root.cropDragHandle >= 0) {
                 root.cropDragHandle = -1;
                 root.endPointerGesture();
@@ -1275,6 +1289,7 @@ PanelWindow {
         }
         // If the compositor drops the grab (focus thrash / monitor claim), still clear drag state.
         onCanceled: () => {
+            _livePts = [];
             if (root.cropDrawing) {
                 root.cropDrawing = false;
                 root.setCrop(root.cropIsValid(root.crop) ? root.crop : null);
