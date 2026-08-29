@@ -1060,7 +1060,7 @@ PanelWindow {
             y: -19
             text: "edit"
             iconSize: 20
-            color: root.strokeColor
+            color: "#ffffff"
         }
 
         Rectangle {
