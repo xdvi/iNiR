@@ -1036,6 +1036,7 @@ PanelWindow {
         delegate: HandleDot { z: 40 }
     }
 
+    // Drawing tool brush tip and icon cursor follower.
     Item {
         id: penCursorIndicator
         visible: root.hasCrop && !root.cropDrawing && (root.tool === "pen" || root.tool === "highlight" || root.tool === "counter" || root.tool === "line" || root.tool === "rect" || root.tool === "circle" || root.tool === "arrow" || root.tool === "blur")
