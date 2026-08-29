@@ -1060,7 +1060,7 @@ PanelWindow {
             y: -19
             text: "edit"
             iconSize: 20
-            color: "#ffffff"
+            color: Appearance.m3colors.m3onSurface
         }
 
         Rectangle {
