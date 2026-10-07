@@ -31,7 +31,7 @@ PanelWindow {
 
     // ── Tool state ──────────────────────────────────────────────────────────
     property string tool: "pen"           // pen | rect | arrow | text | highlight
-    property color strokeColor: Appearance.m3colors.m3primary
+    property color annotationColor: Appearance.m3colors.m3primary
     property real strokeWidth: 4
     property var strokes: []              // committed shape strokes
     property var texts: []                // committed text annotations
@@ -58,7 +58,7 @@ PanelWindow {
     }
     function addText(x, y) {
         const arr = root.texts.slice();
-        arr.push({ x: x, y: y, text: "", color: String(root.strokeColor), size: Math.max(14, root.strokeWidth * 5) });
+        arr.push({ x: x, y: y, text: "", color: String(root.annotationColor), size: Math.max(14, root.strokeWidth * 5) });
         root.texts = arr;
         const h = root.history.slice(); h.push({ kind: "text" }); root.history = h;
         textRepeater.focusLast();
@@ -261,7 +261,7 @@ PanelWindow {
                     _lastPenPoint = Qt.point(m.x, m.y);
                     root.setCurrent({
                         tool: root.tool,
-                        color: root.tool === "highlight" ? ColorUtils.transparentize(root.strokeColor, 0.6) : String(root.strokeColor),
+                        color: root.tool === "highlight" ? ColorUtils.transparentize(root.annotationColor, 0.6) : String(root.annotationColor),
                         width: root.tool === "highlight" ? root.strokeWidth * 4 : root.strokeWidth,
                         pts: [Qt.point(m.x, m.y)]
                     });
@@ -345,8 +345,8 @@ PanelWindow {
                         implicitHeight: 26
                         radius: Appearance.rounding.full
                         color: swatch.modelData
-                        border.width: root.strokeColor == swatch.modelData ? 3 : 1
-                        border.color: root.strokeColor == swatch.modelData
+                        border.width: root.annotationColor == swatch.modelData ? 3 : 1
+                        border.color: root.annotationColor == swatch.modelData
                             ? Appearance.colors.colOnLayer1
                             : Appearance.colors.colOutlineVariant
                         Behavior on border.width {
@@ -356,7 +356,7 @@ PanelWindow {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.strokeColor = swatch.modelData
+                            onClicked: root.annotationColor = swatch.modelData
                         }
                     }
                 }

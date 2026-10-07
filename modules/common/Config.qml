@@ -3335,6 +3335,9 @@ Singleton {
                 }
                 property string savePath: "" // Empty = use XDG Pictures/Screenshots
                 property string screenshotNameFormat: "ss-%Y%m%d-%H%M%S" // date(1) format for screenshot filenames (without extension)
+                property list<string> customColors: [] // Annotation editor's "My Collection" saved custom colors
+                property string lastCustomColor: "" // Last custom color picked, shown on the picker swatch itself
+                property real lastStrokeWidth: 4 // Last annotation stroke width used
             }
 
             property JsonObject resources: JsonObject {
