@@ -179,9 +179,13 @@ RippleButton {
             root.suppressClick = false
             return
         }
-        GlobalStates.overviewOpen = false
-        if (root.entry && root.entry.execute)
-            root.entry.execute()
+        const executeFn = root.entry && root.entry.execute ? root.entry.execute : null
+        try {
+            if (typeof executeFn === "function")
+                executeFn()
+        } finally {
+            GlobalStates.overviewOpen = false
+        }
     }
 
     Timer {
